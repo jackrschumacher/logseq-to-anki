@@ -49,14 +49,54 @@
         .status-badge.active { background: rgba(16, 185, 129, 0.2); color: var(--green); }
         .pulse { width: 8px; height: 8px; background: currentColor; border-radius: 50%; }
 
-        /* --- WORKSPACE --- */
+        /* --- WORKSPACE (RESPONSIVE GRID) --- */
         .workspace {
-            display: grid; grid-template-columns: var(--sidebar-width) 1fr 320px 240px; 
+            display: grid; 
+            /* Default Desktop: 4 Columns */
+            grid-template-columns: var(--sidebar-width) 1fr 320px 240px; 
+            grid-template-rows: 1fr;
             flex: 1; min-height: 0; overflow: hidden;
         }
+
+        /* Tablet: 2x2 Grid */
+        @media (max-width: 1200px) {
+            .workspace {
+                grid-template-columns: 250px 1fr;
+                grid-template-rows: 1fr 1fr; /* Two rows */
+            }
+            /* Fix pane borders for grid */
+            .pane { border-bottom: 1px solid var(--border); }
+        }
+
+        /* Mobile: Stack Vertical */
+        @media (max-width: 768px) {
+            body { overflow: auto; height: auto; } /* Allow body scroll */
+            .workspace {
+                display: flex;
+                flex-direction: column;
+                overflow: visible;
+                height: auto;
+            }
+            .pane {
+                height: 500px; /* Fixed height for panes on mobile to allow internal scrolling */
+                border-right: none;
+                border-bottom: 4px solid var(--bg); /* Thicker separator */
+            }
+            /* Make source editor taller on mobile */
+            .pane:nth-child(2) { height: 600px; }
+            
+            .top-bar {
+                padding: 10px;
+                flex-wrap: wrap;
+                height: auto;
+                gap: 10px;
+            }
+            .controls-left { flex-wrap: wrap; }
+        }
+        
         .pane {
             border-right: 1px solid var(--border); display: flex;
-            flex-direction: column; height: 100%; overflow: hidden;
+            flex-direction: column; overflow: hidden; min-height: 0;
         }
         .pane:last-child { border-right: none; }
         .pane-header {
@@ -134,11 +174,19 @@
             position: relative; font-size: 0.85rem; opacity: 0.8;
         }
 
+        /* Utility Buttons */
+        .clear-btn {
+            background: transparent; border: none; color: #64748b; 
+            font-size: 1rem; padding: 4px; border-radius: 4px;
+        }
+        .clear-btn:hover { background: rgba(239, 68, 68, 0.1); color: var(--red); }
+
         /* --- FOOTER & MODAL --- */
         .footer-bar {
             height: 30px; background: var(--surface); border-top: 1px solid var(--border);
             display: flex; align-items: center; padding: 0 15px; font-size: 0.75rem; color: #94a3b8;
             justify-content: space-between; flex-shrink: 0; user-select: none;
+            position: sticky; bottom: 0; z-index: 100; /* Ensure visible on mobile scroll */
         }
         .stat-group { display: flex; gap: 20px; }
         .stat-item { display: flex; gap: 6px; align-items: center; }
@@ -248,7 +296,10 @@
                     <textarea id="inputBack" placeholder="Back (Alt+2)"></textarea>
                     <button class="btn-stage" onclick="stageDraft()"><span>⬇ Stage</span> <span>Ctrl+Enter</span></button>
                 </div>
-                <div class="pane-header" style="background:transparent; border-top:none; border-bottom:1px solid var(--border); font-size:0.7rem;">Pending</div>
+                <div class="pane-header" style="background:transparent; border-top:none; border-bottom:1px solid var(--border); font-size:0.7rem;">
+                    Pending
+                    <button class="clear-btn" onclick="clearDrafts()" title="Clear Staging">🗑️</button>
+                </div>
                 <div class="draft-area" id="draftList"></div>
                 <div style="padding:10px; border-top: 1px solid var(--border); flex-shrink: 0;">
                     <button class="btn-commit-all" onclick="commitAllDrafts()">Commit All ➔</button>
@@ -258,7 +309,10 @@
 
         <!-- PANE 4: EXPORT -->
         <div class="pane">
-            <div class="pane-header">Export Queue</div>
+            <div class="pane-header">
+                Export Queue
+                <button class="clear-btn" onclick="clearQueue()" title="Clear Queue">🗑️</button>
+            </div>
             <div class="card-list" id="finalList"></div>
             <div style="padding:10px;">
                 <button class="primary" style="width:100%" onclick="downloadCSV()">Download CSV</button>
@@ -274,8 +328,6 @@
             <div class="stat-item"><span class="stat-label">CHARS:</span><span class="stat-value" id="statChars">0</span></div>
         </div>
         <div class="stat-group">
-            <!-- Removed DEBUG STATUS AREA -->
-            
             <div class="stat-item"><span class="stat-label">DRAFTS:</span><span class="stat-value" id="statDrafts" style="color:var(--orange)">0</span></div>
             <div class="stat-divider"></div>
             <div class="stat-item"><span class="stat-label" style="color:var(--green)">QUEUE:</span><span class="stat-value" id="statTotal" style="color:var(--green)">0</span></div>
@@ -334,7 +386,7 @@
         import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
         import { getDatabase, ref, onValue, runTransaction, get } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js";
 
-        // --- KEYS ---
+        // --- KEYS FROM CHAT HISTORY ---
         const firebaseConfig = {
             apiKey: "AIzaSyAUioj0PYXuWnqN38g3oVvg-lP_r42c-fI",
             authDomain: "logseq-to-anki.firebaseapp.com",
@@ -359,8 +411,6 @@
             const date = new Date();
             return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
         }
-
-        // Removed showStatus helper function
 
         // SAVE STATS
         window.saveBatchStats = function(cardCount, wordCount, charCount) {
@@ -599,6 +649,23 @@
                 el.appendChild(div);
             });
             el.scrollTop=el.scrollHeight; updateStats();
+        }
+
+        // --- CLEAR QUEUE FUNCTIONS ---
+        window.clearDrafts = function() {
+            if(drafts.length === 0) return;
+            if(confirm("Clear all pending drafts?")) {
+                drafts = [];
+                renderDrafts();
+            }
+        }
+
+        window.clearQueue = function() {
+            if(cards.length === 0) return;
+            if(confirm("Clear export queue?")) {
+                cards = [];
+                renderQueue();
+            }
         }
 
         function downloadCSV() {
