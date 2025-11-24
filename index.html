@@ -3,7 +3,6 @@
 <head>
     <meta charset="UTF-8">
     <title>Logseq Anki Dashboard</title>
-    <link rel="icon" type="image/x-icon" href="favicon.ico">
     <!-- Chart.js for the Graph -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
@@ -285,7 +284,7 @@
     <div id="statsModal">
         <div class="modal-content">
             <div class="modal-header">
-                <div class="modal-title">My Statistics</div>
+                <div class="modal-title">Community Statistics</div>
                 <button onclick="document.getElementById('statsModal').style.display='none'" style="background:none; border:none; color:white; font-size:1.5rem;">✕</button>
             </div>
 
@@ -374,11 +373,12 @@
             return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
         }
 
-        // SAVE STATS (Updated to save Object)
+        // SAVE STATS (Updated to save to global_stats)
         window.saveBatchStats = function(cardCount, wordCount, charCount) {
             if(!currentUser || cardCount <= 0) return;
             const monthKey = getCurrentMonthKey();
-            const statsRef = ref(db, `users/${currentUser.uid}/stats/${monthKey}`);
+            // CHANGE: Write to global_stats
+            const statsRef = ref(db, `global_stats/${monthKey}`);
             
             runTransaction(statsRef, (currentData) => {
                 if (currentData === null) {
@@ -389,7 +389,7 @@
                     wordCount: (currentData.wordCount || 0) + wordCount,
                     charCount: (currentData.charCount || 0) + charCount
                 };
-            }).then(() => console.log("Stats Saved"));
+            }).then(() => console.log("Global Stats Saved"));
         };
 
         // FETCH & RENDER STATS MODAL
@@ -397,7 +397,8 @@
             if(!currentUser) { alert("Please wait for Firebase connection."); return; }
             document.getElementById('statsModal').style.display = 'flex';
             
-            const statsRef = ref(db, `users/${currentUser.uid}/stats`);
+            // CHANGE: Read from global_stats
+            const statsRef = ref(db, `global_stats`);
             const snapshot = await get(statsRef);
             
             if (!snapshot.exists()) return;
