@@ -3,6 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <title>Logseq Anki Dashboard</title>
+    <!-- Favicon -->
     <link rel="icon" type="image/x-icon" href="favicon.ico">
     <!-- Chart.js for the Graph -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
@@ -89,13 +90,12 @@
         .auto-card { border-bottom: 2px dashed var(--green); cursor: pointer; color: #a7f3d0; }
         .auto-card:hover { background: rgba(16, 185, 129, 0.15); }
 
-        /* FIXED: Changed from height: 100% to flex: 1; min-height: 0 */
         .workbench-split { display: flex; flex-direction: column; flex: 1; min-height: 0; overflow: hidden; }
 
         .input-area {
             padding: 15px; border-bottom: 1px solid var(--border);
             display: flex; flex-direction: column; gap: 10px; background: #162032;
-            flex-shrink: 0; /* Ensures input area doesn't shrink */
+            flex-shrink: 0; 
         }
         .draft-area { flex: 1; overflow-y: auto; padding: 10px; background: var(--bg); display: flex; flex-direction: column; gap: 8px; }
         textarea {
@@ -250,7 +250,6 @@
                 </div>
                 <div class="pane-header" style="background:transparent; border-top:none; border-bottom:1px solid var(--border); font-size:0.7rem;">Pending</div>
                 <div class="draft-area" id="draftList"></div>
-                <!-- FIXED: Added flex-shrink: 0 to ensure visibility -->
                 <div style="padding:10px; border-top: 1px solid var(--border); flex-shrink: 0;">
                     <button class="btn-commit-all" onclick="commitAllDrafts()">Commit All ➔</button>
                 </div>
@@ -281,7 +280,7 @@
         </div>
     </div>
 
-    <!-- STATS MODAL (The Visual Upgrade) -->
+    <!-- STATS MODAL -->
     <div id="statsModal">
         <div class="modal-content">
             <div class="modal-header">
@@ -343,7 +342,7 @@
         import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
         import { getDatabase, ref, onValue, runTransaction, get } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js";
 
-        // --- YOUR INTEGRATED KEYS ---
+        // --- KEYS ---
         const firebaseConfig = {
             apiKey: "AIzaSyAUioj0PYXuWnqN38g3oVvg-lP_r42c-fI",
             authDomain: "logseq-to-anki.firebaseapp.com",
@@ -363,80 +362,105 @@
 
         // AUTH
         signInAnonymously(auth).catch((error) => console.error("Auth Failed", error));
-        onAuthStateChanged(auth, (user) => {
-            if (user) {
-                currentUser = user;
-            }
-        });
+        onAuthStateChanged(auth, (user) => { if (user) currentUser = user; });
 
         function getCurrentMonthKey() {
             const date = new Date();
             return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
         }
 
-        // SAVE STATS (Updated to save to global_stats)
+        // SAVE STATS (Writes to BOTH global_stats AND global_totals)
         window.saveBatchStats = function(cardCount, wordCount, charCount) {
             if(!currentUser || cardCount <= 0) return;
             const monthKey = getCurrentMonthKey();
-            // CHANGE: Write to global_stats
-            const statsRef = ref(db, `global_stats/${monthKey}`);
             
+            // 1. Transaction for Monthly History
+            const statsRef = ref(db, `global_stats/${monthKey}`);
             runTransaction(statsRef, (currentData) => {
-                if (currentData === null) {
-                    return { cardCount: cardCount, wordCount: wordCount, charCount: charCount };
-                }
+                if (currentData === null) return { cardCount, wordCount, charCount };
                 return {
                     cardCount: (currentData.cardCount || 0) + cardCount,
                     wordCount: (currentData.wordCount || 0) + wordCount,
                     charCount: (currentData.charCount || 0) + charCount
                 };
-            }).then(() => console.log("Global Stats Saved"));
+            }).catch(err => console.error("Stats Error:", err));
+
+            // 2. Transaction for All-Time Totals
+            const totalRef = ref(db, `global_totals`);
+            runTransaction(totalRef, (currentData) => {
+                if (currentData === null) return { cardCount, wordCount, charCount };
+                return {
+                    cardCount: (currentData.cardCount || 0) + cardCount,
+                    wordCount: (currentData.wordCount || 0) + wordCount,
+                    charCount: (currentData.charCount || 0) + charCount
+                };
+            }).then(() => console.log("Stats Saved (Dual Write)"));
         };
 
-        // FETCH & RENDER STATS MODAL
+        // FETCH & RENDER STATS MODAL (Reads BOTH)
         window.openStatsModal = async function() {
             if(!currentUser) { alert("Please wait for Firebase connection."); return; }
             document.getElementById('statsModal').style.display = 'flex';
             
-            // CHANGE: Read from global_stats
-            const statsRef = ref(db, `global_stats`);
-            const snapshot = await get(statsRef);
-            
-            if (!snapshot.exists()) return;
+            // Fetch both locations
+            const historyPromise = get(ref(db, `global_stats`));
+            const totalsPromise = get(ref(db, `global_totals`));
 
-            const data = snapshot.val();
-            const months = Object.keys(data).sort();
+            const [historySnap, totalsSnap] = await Promise.all([historyPromise, totalsPromise]);
+
+            // --- 1. Render Big Numbers ---
+            let totalWords=0, totalChars=0, totalCards=0;
+
+            if (totalsSnap.exists()) {
+                // Primary: Use stored totals if available
+                const t = totalsSnap.val();
+                totalWords = t.wordCount || 0;
+                totalChars = t.charCount || 0;
+                totalCards = t.cardCount || 0;
+            } 
             
-            // 1. Aggregates
-            let totalWords = 0, totalChars = 0, totalCards = 0;
-            const tableRows = [];
+            // --- 2. Process History (Graph/Table) ---
             const labels = [];
             const wordData = [];
-            const charData = [];
             const cardData = [];
+            const tableRows = [];
 
-            months.forEach(m => {
-                const entry = data[m];
-                totalWords += (entry.wordCount || 0);
-                totalChars += (entry.charCount || 0);
-                totalCards += (entry.cardCount || 0);
+            if (historySnap.exists()) {
+                const data = historySnap.val();
+                const months = Object.keys(data).sort();
+                
+                // Fallback: If global_totals was empty (older data), sum from history
+                let calcWords=0, calcChars=0, calcCards=0;
 
-                labels.push(m);
-                wordData.push(entry.wordCount || 0);
-                charData.push(entry.charCount || 0);
-                cardData.push(entry.cardCount || 0);
+                months.forEach(m => {
+                    const entry = data[m];
+                    calcWords += (entry.wordCount || 0);
+                    calcChars += (entry.charCount || 0);
+                    calcCards += (entry.cardCount || 0);
 
-                tableRows.unshift(`
-                    <tr>
-                        <td>${m}</td>
-                        <td style="color:#10b981">${(entry.wordCount || 0).toLocaleString()}</td>
-                        <td style="color:#f59e0b">${(entry.charCount || 0).toLocaleString()}</td>
-                        <td style="color:#8b5cf6">${(entry.cardCount || 0).toLocaleString()}</td>
-                    </tr>
-                `);
-            });
+                    labels.push(m);
+                    wordData.push(entry.wordCount || 0);
+                    cardData.push(entry.cardCount || 0);
 
-            // Update DOM
+                    tableRows.unshift(`
+                        <tr>
+                            <td>${m}</td>
+                            <td style="color:#10b981">${(entry.wordCount || 0).toLocaleString()}</td>
+                            <td style="color:#f59e0b">${(entry.charCount || 0).toLocaleString()}</td>
+                            <td style="color:#8b5cf6">${(entry.cardCount || 0).toLocaleString()}</td>
+                        </tr>
+                    `);
+                });
+
+                // If no totals existed, use the calculated ones
+                if (!totalsSnap.exists()) {
+                    totalWords = calcWords;
+                    totalChars = calcChars;
+                    totalCards = calcCards;
+                }
+            }
+
+            // Render DOM
             document.getElementById('modalTotalWords').innerText = totalWords.toLocaleString();
             document.getElementById('modalTotalChars').innerText = totalChars.toLocaleString();
             document.getElementById('modalTotalCards').innerText = totalCards.toLocaleString();
@@ -455,39 +479,17 @@
                 data: {
                     labels: labels,
                     datasets: [
-                        {
-                            label: 'Words',
-                            data: wordData,
-                            backgroundColor: 'rgba(16, 185, 129, 0.7)',
-                            yAxisID: 'y',
-                        },
-                        {
-                            label: 'Cards Created',
-                            data: cardData,
-                            borderColor: '#8b5cf6',
-                            backgroundColor: 'rgba(139, 92, 246, 0.2)',
-                            type: 'line',
-                            yAxisID: 'y1',
-                        }
+                        { label: 'Words', data: wordData, backgroundColor: 'rgba(16, 185, 129, 0.7)', yAxisID: 'y' },
+                        { label: 'Cards', data: cardData, borderColor: '#8b5cf6', backgroundColor: 'rgba(139, 92, 246, 0.2)', type: 'line', yAxisID: 'y1' }
                     ]
                 },
                 options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    interaction: { mode: 'index', intersect: false },
-                    plugins: {
-                        legend: { labels: { color: '#cbd5e1' } }
-                    },
+                    responsive: true, maintainAspectRatio: false, interaction: { mode: 'index', intersect: false },
+                    plugins: { legend: { labels: { color: '#cbd5e1' } } },
                     scales: {
                         x: { ticks: { color: '#64748b' }, grid: { color: '#334155' } },
-                        y: {
-                            type: 'linear', display: true, position: 'left',
-                            ticks: { color: '#10b981' }, grid: { color: '#334155' }
-                        },
-                        y1: {
-                            type: 'linear', display: true, position: 'right',
-                            ticks: { color: '#8b5cf6' }, grid: { drawOnChartArea: false }
-                        },
+                        y: { type: 'linear', display: true, position: 'left', ticks: { color: '#10b981' }, grid: { color: '#334155' } },
+                        y1: { type: 'linear', display: true, position: 'right', ticks: { color: '#8b5cf6' }, grid: { drawOnChartArea: false } }
                     }
                 }
             });
