@@ -274,6 +274,8 @@
             <div class="stat-item"><span class="stat-label">CHARS:</span><span class="stat-value" id="statChars">0</span></div>
         </div>
         <div class="stat-group">
+            <!-- Removed DEBUG STATUS AREA -->
+            
             <div class="stat-item"><span class="stat-label">DRAFTS:</span><span class="stat-value" id="statDrafts" style="color:var(--orange)">0</span></div>
             <div class="stat-divider"></div>
             <div class="stat-item"><span class="stat-label" style="color:var(--green)">QUEUE:</span><span class="stat-value" id="statTotal" style="color:var(--green)">0</span></div>
@@ -288,7 +290,6 @@
                 <button onclick="document.getElementById('statsModal').style.display='none'" style="background:none; border:none; color:white; font-size:1.5rem;">✕</button>
             </div>
 
-            <!-- Top Cards -->
             <div class="stat-grid">
                 <div class="stat-card">
                     <span class="stat-card-num c-green" id="modalTotalWords">0</span>
@@ -304,26 +305,17 @@
                 </div>
             </div>
 
-            <!-- Graph -->
             <div class="chart-container">
                 <canvas id="myChart"></canvas>
             </div>
 
-            <!-- Table -->
             <div style="margin-top: 20px;">
                 <h3 style="margin-bottom: 15px; font-size: 1rem; color: #94a3b8;">History by Month</h3>
                 <table class="history-table">
                     <thead>
-                        <tr>
-                            <th>Month</th>
-                            <th>Words</th>
-                            <th>Characters</th>
-                            <th>Cards Created</th>
-                        </tr>
+                        <tr><th>Month</th><th>Words</th><th>Characters</th><th>Cards Created</th></tr>
                     </thead>
-                    <tbody id="historyTableBody">
-                        <!-- JS fills this -->
-                    </tbody>
+                    <tbody id="historyTableBody"></tbody>
                 </table>
             </div>
 
@@ -360,7 +352,6 @@
         let currentUser = null;
         let chartInstance = null;
 
-        // AUTH
         signInAnonymously(auth).catch((error) => console.error("Auth Failed", error));
         onAuthStateChanged(auth, (user) => { if (user) currentUser = user; });
 
@@ -369,67 +360,74 @@
             return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
         }
 
-        // SAVE STATS (Writes to BOTH global_stats AND global_totals)
+        // Removed showStatus helper function
+
+        // SAVE STATS
         window.saveBatchStats = function(cardCount, wordCount, charCount) {
-            if(!currentUser || cardCount <= 0) return;
+            if(!currentUser) { console.warn("Firebase: Not connected"); return; }
+            if(cardCount <= 0) return;
+            
             const monthKey = getCurrentMonthKey();
             
-            // 1. Transaction for Monthly History
+            // 1. Monthly History
             const statsRef = ref(db, `global_stats/${monthKey}`);
-            runTransaction(statsRef, (currentData) => {
-                if (currentData === null) return { cardCount, wordCount, charCount };
+            runTransaction(statsRef, (data) => {
+                if (!data) return { cardCount, wordCount, charCount };
                 return {
-                    cardCount: (currentData.cardCount || 0) + cardCount,
-                    wordCount: (currentData.wordCount || 0) + wordCount,
-                    charCount: (currentData.charCount || 0) + charCount
+                    cardCount: (data.cardCount || 0) + cardCount,
+                    wordCount: (data.wordCount || 0) + wordCount,
+                    charCount: (data.charCount || 0) + charCount
                 };
-            }).catch(err => console.error("Stats Error:", err));
+            });
 
-            // 2. Transaction for All-Time Totals
+            // 2. All-Time Totals
             const totalRef = ref(db, `global_totals`);
-            runTransaction(totalRef, (currentData) => {
-                if (currentData === null) return { cardCount, wordCount, charCount };
+            runTransaction(totalRef, (data) => {
+                if (!data) return { cardCount, wordCount, charCount };
                 return {
-                    cardCount: (currentData.cardCount || 0) + cardCount,
-                    wordCount: (currentData.wordCount || 0) + wordCount,
-                    charCount: (currentData.charCount || 0) + charCount
+                    cardCount: (data.cardCount || 0) + cardCount,
+                    wordCount: (data.wordCount || 0) + wordCount,
+                    charCount: (data.charCount || 0) + charCount
                 };
-            }).then(() => console.log("Stats Saved (Dual Write)"));
+            })
+            .then(() => console.log("Stats Saved!"))
+            .catch(err => {
+                console.error("DB Error:", err);
+            });
         };
 
-        // FETCH & RENDER STATS MODAL (Reads BOTH)
+        // FETCH & RENDER STATS MODAL
         window.openStatsModal = async function() {
             if(!currentUser) { alert("Please wait for Firebase connection."); return; }
             document.getElementById('statsModal').style.display = 'flex';
             
-            // Fetch both locations
             const historyPromise = get(ref(db, `global_stats`));
             const totalsPromise = get(ref(db, `global_totals`));
 
-            const [historySnap, totalsSnap] = await Promise.all([historyPromise, totalsPromise]);
+            let historySnap, totalsSnap;
+            try {
+                [historySnap, totalsSnap] = await Promise.all([historyPromise, totalsPromise]);
+            } catch(e) { console.error("Read error", e); }
 
-            // --- 1. Render Big Numbers ---
             let totalWords=0, totalChars=0, totalCards=0;
 
-            if (totalsSnap.exists()) {
-                // Primary: Use stored totals if available
+            // Try reading totals first
+            if (totalsSnap && totalsSnap.exists()) {
                 const t = totalsSnap.val();
                 totalWords = t.wordCount || 0;
                 totalChars = t.charCount || 0;
                 totalCards = t.cardCount || 0;
             } 
             
-            // --- 2. Process History (Graph/Table) ---
             const labels = [];
             const wordData = [];
             const cardData = [];
             const tableRows = [];
 
-            if (historySnap.exists()) {
+            if (historySnap && historySnap.exists()) {
                 const data = historySnap.val();
                 const months = Object.keys(data).sort();
                 
-                // Fallback: If global_totals was empty (older data), sum from history
                 let calcWords=0, calcChars=0, calcCards=0;
 
                 months.forEach(m => {
@@ -452,21 +450,17 @@
                     `);
                 });
 
-                // If no totals existed, use the calculated ones
-                if (!totalsSnap.exists()) {
-                    totalWords = calcWords;
-                    totalChars = calcChars;
-                    totalCards = calcCards;
+                // Fallback calculation if totals missing
+                if (!totalsSnap || !totalsSnap.exists()) {
+                    totalWords = calcWords; totalChars = calcChars; totalCards = calcCards;
                 }
             }
 
-            // Render DOM
             document.getElementById('modalTotalWords').innerText = totalWords.toLocaleString();
             document.getElementById('modalTotalChars').innerText = totalChars.toLocaleString();
             document.getElementById('modalTotalCards').innerText = totalCards.toLocaleString();
             document.getElementById('historyTableBody').innerHTML = tableRows.join('');
 
-            // Render Chart
             renderChart(labels, wordData, cardData);
         };
 
