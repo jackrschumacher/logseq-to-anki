@@ -1,0 +1,669 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Logseq Anki Dashboard</title>
+    <link rel="icon" type="image/x-icon" href="favicon.ico">
+    <!-- Chart.js for the Graph -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        :root {
+            --bg: #0f172a; --surface: #1e293b; --border: #334155;
+            --text: #e2e8f0; --accent: #3b82f6; --green: #10b981;
+            --orange: #f59e0b; --red: #ef4444; --purple: #8b5cf6;
+            --sidebar-width: 220px;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background-color: var(--bg); color: var(--text);
+            margin: 0; padding: 0; display: flex; flex-direction: column;
+            height: 100vh; overflow: hidden;
+        }
+
+        /* --- LAYOUT UTILS --- */
+        button { cursor: pointer; transition: 0.2s; }
+        ::-webkit-scrollbar { width: 8px; height: 8px; }
+        ::-webkit-scrollbar-track { background: var(--bg); }
+        ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #475569; }
+
+        /* --- TOP BAR --- */
+        .top-bar {
+            background: var(--surface); border-bottom: 1px solid var(--border);
+            padding: 0 20px; height: 50px; display: flex;
+            justify-content: space-between; align-items: center; flex-shrink: 0;
+        }
+        .controls-left { display: flex; align-items: center; gap: 15px; }
+        .toggle-switch {
+            display: flex; align-items: center; gap: 8px; font-size: 0.85rem;
+            background: rgba(255,255,255,0.05); padding: 4px 10px; border-radius: 20px;
+            cursor: pointer; user-select: none; border: 1px solid var(--border);
+        }
+        .status-badge {
+            font-size: 0.75rem; padding: 4px 8px; border-radius: 4px;
+            background: #334155; color: #94a3b8; font-weight: bold;
+            display: flex; align-items: center; gap: 5px;
+        }
+        .status-badge.active { background: rgba(16, 185, 129, 0.2); color: var(--green); }
+        .pulse { width: 8px; height: 8px; background: currentColor; border-radius: 50%; }
+
+        /* --- WORKSPACE --- */
+        .workspace {
+            display: grid; grid-template-columns: var(--sidebar-width) 1fr 320px 240px; 
+            flex: 1; min-height: 0; overflow: hidden;
+        }
+        .pane {
+            border-right: 1px solid var(--border); display: flex;
+            flex-direction: column; height: 100%; overflow: hidden;
+        }
+        .pane:last-child { border-right: none; }
+        .pane-header {
+            padding: 10px; background: rgba(0,0,0,0.2); border-bottom: 1px solid var(--border);
+            font-size: 0.75rem; font-weight: bold; color: #94a3b8; text-transform: uppercase;
+            display: flex; justify-content: space-between; align-items: center; flex-shrink: 0;
+        }
+
+        /* --- COLUMNS --- */
+        .search-box { padding: 10px; border-bottom: 1px solid var(--border); background: var(--surface); }
+        .search-box input {
+            width: 100%; background: var(--bg); border: 1px solid var(--border);
+            color: white; padding: 6px; border-radius: 4px; font-size: 0.85rem;
+        }
+        .file-list { flex: 1; overflow-y: auto; }
+        .file-item {
+            padding: 8px 15px; cursor: pointer; font-size: 0.85rem;
+            border-bottom: 1px solid rgba(255,255,255,0.03); white-space: nowrap;
+            overflow: hidden; text-overflow: ellipsis; color: #cbd5e1;
+        }
+        .file-item:hover { background: rgba(255,255,255,0.05); }
+        .file-item.selected { background: var(--accent); color: white; }
+
+        #sourceWrapper { flex: 1; overflow-y: auto; position: relative; }
+        #sourceEditor {
+            padding: 20px; outline: none; line-height: 1.8;
+            white-space: pre-wrap; font-family: 'Courier New', Courier, monospace; font-size: 14px;
+        }
+        .suggestion { border-bottom: 1px dashed var(--orange); cursor: pointer; color: #fff; }
+        .suggestion:hover { background: rgba(245, 158, 11, 0.2); }
+        .auto-card { border-bottom: 2px dashed var(--green); cursor: pointer; color: #a7f3d0; }
+        .auto-card:hover { background: rgba(16, 185, 129, 0.15); }
+
+        /* FIXED: Changed from height: 100% to flex: 1; min-height: 0 */
+        .workbench-split { display: flex; flex-direction: column; flex: 1; min-height: 0; overflow: hidden; }
+
+        .input-area {
+            padding: 15px; border-bottom: 1px solid var(--border);
+            display: flex; flex-direction: column; gap: 10px; background: #162032;
+            flex-shrink: 0; /* Ensures input area doesn't shrink */
+        }
+        .draft-area { flex: 1; overflow-y: auto; padding: 10px; background: var(--bg); display: flex; flex-direction: column; gap: 8px; }
+        textarea {
+            width: 100%; background: var(--surface); border: 1px solid var(--border);
+            color: white; border-radius: 4px; padding: 8px; min-height: 70px;
+            resize: vertical; font-family: inherit; box-sizing: border-box;
+        }
+        textarea:focus { border-color: var(--accent); outline: none; }
+        
+        .btn-stage {
+            background: var(--surface); border: 1px solid var(--accent); color: var(--accent);
+            padding: 10px; border-radius: 4px; cursor: pointer; font-weight: bold;
+            display: flex; justify-content: space-between; transition: 0.2s;
+        }
+        .btn-stage:hover { background: var(--accent); color: white; }
+        
+        .btn-commit-all {
+            background: var(--green); color: white; border: none; padding: 12px;
+            border-radius: 4px; cursor: pointer; font-weight: bold; margin-top: 10px; width: 100%;
+        }
+        .btn-commit-all:hover { background: #059669; }
+        
+        .draft-item {
+            background: var(--surface); border: 1px solid var(--border);
+            border-left: 3px solid var(--orange); border-radius: 4px; padding: 10px;
+        }
+        .draft-actions { margin-top: 8px; display: flex; gap: 5px; justify-content: flex-end; }
+        .mini-btn { font-size: 0.7rem; padding: 4px 8px; border-radius: 3px; border: none; cursor: pointer; }
+        .btn-push { background: var(--green); color: white; }
+        .btn-del { background: var(--red); color: white; }
+
+        .card-list { flex: 1; overflow-y: auto; padding: 10px; }
+        .saved-card {
+            background: var(--surface); border: 1px solid var(--border);
+            border-radius: 4px; padding: 10px; margin-bottom: 8px;
+            position: relative; font-size: 0.85rem; opacity: 0.8;
+        }
+
+        /* --- FOOTER & MODAL --- */
+        .footer-bar {
+            height: 30px; background: var(--surface); border-top: 1px solid var(--border);
+            display: flex; align-items: center; padding: 0 15px; font-size: 0.75rem; color: #94a3b8;
+            justify-content: space-between; flex-shrink: 0; user-select: none;
+        }
+        .stat-group { display: flex; gap: 20px; }
+        .stat-item { display: flex; gap: 6px; align-items: center; }
+        .stat-value { color: var(--text); font-weight: 600; font-family: monospace; }
+        .stat-divider { width: 1px; height: 14px; background: var(--border); }
+
+        /* STATS MODAL STYLES */
+        #statsModal {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.85); z-index: 2000;
+            display: none; justify-content: center; align-items: center;
+            backdrop-filter: blur(5px);
+        }
+        .modal-content {
+            background: #0f172a; border: 1px solid var(--border); border-radius: 12px;
+            width: 900px; max-width: 95%; max-height: 90vh; overflow-y: auto;
+            padding: 30px; box-shadow: 0 20px 50px rgba(0,0,0,0.5);
+        }
+        .modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 30px; }
+        .modal-title { font-size: 1.5rem; font-weight: bold; }
+        
+        .stat-grid {
+            display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; margin-bottom: 30px;
+        }
+        .stat-card {
+            background: #1e293b; border: 1px solid var(--border); border-radius: 8px;
+            padding: 20px; text-align: center; display: flex; flex-direction: column; gap: 5px;
+        }
+        .stat-card-num { font-size: 1.8rem; font-weight: bold; }
+        .stat-card-label { font-size: 0.8rem; color: #94a3b8; text-transform: uppercase; letter-spacing: 1px;}
+        
+        /* Specific Colors for cards */
+        .c-green { color: var(--green); }
+        .c-orange { color: var(--orange); }
+        .c-purple { color: var(--purple); }
+
+        .chart-container {
+            background: #1e293b; border: 1px solid var(--border); border-radius: 8px;
+            padding: 20px; margin-bottom: 30px; height: 350px; position: relative;
+        }
+
+        .history-table {
+            width: 100%; border-collapse: collapse; font-size: 0.9rem;
+        }
+        .history-table th { text-align: left; color: #94a3b8; padding: 10px; border-bottom: 1px solid var(--border); }
+        .history-table td { padding: 15px 10px; border-bottom: 1px solid rgba(255,255,255,0.05); }
+        .history-table tr:last-child td { border-bottom: none; }
+
+        .close-btn {
+            background: #1e293b; border: 1px solid var(--border); color: white;
+            padding: 10px 20px; border-radius: 6px; margin-top: 20px; width: 100%;
+        }
+        .close-btn:hover { background: #334155; }
+
+        /* --- POPUP --- */
+        #selectionPopup {
+            position: fixed; background: #0f172a; border: 1px solid var(--accent);
+            padding: 5px; display: none; gap: 5px; z-index: 1000; border-radius: 6px;
+        }
+        #selectionPopup button {
+            background: var(--surface); border: 1px solid var(--border); color: var(--text);
+            padding: 5px 10px; border-radius: 4px; cursor: pointer;
+        }
+        #selectionPopup button:hover { background: var(--accent); color: white; }
+        button.primary { background: var(--accent); color: white; border: none; padding: 8px 12px; border-radius: 4px; cursor: pointer; }
+    </style>
+</head>
+<body>
+
+    <div class="top-bar">
+        <div class="controls-left">
+            <h1 style="margin:0; font-size: 1.1rem;">Logseq Graph Explorer</h1>
+            <button class="primary" onclick="openGraphFolder()">📂 Select Graph Folder</button>
+            <label class="toggle-switch">
+                <input type="checkbox" id="smartScanToggle" checked onchange="renderCurrentFile()">
+                <span>Suggestions</span>
+            </label>
+            <div id="statusBadge" class="status-badge"><div class="pulse"></div> <span id="statusText">No Graph</span></div>
+        </div>
+        <div>
+            <button onclick="openStatsModal()" style="background: transparent; border: 1px solid var(--border); color: #cbd5e1; padding: 6px 12px; border-radius: 4px; font-size: 0.85rem;">
+                📊 View Stats
+            </button>
+        </div>
+    </div>
+
+    <div class="workspace">
+        <!-- PANE 1: FILES -->
+        <div class="pane">
+            <div class="pane-header">Pages & Journals</div>
+            <div class="search-box"><input type="text" id="fileSearch" placeholder="Filter..." onkeyup="filterFiles()"></div>
+            <div class="file-list" id="fileListArea"><div style="padding:15px; color:#64748b; text-align:center;">Select folder to start.</div></div>
+        </div>
+
+        <!-- PANE 2: SOURCE -->
+        <div class="pane">
+            <div class="pane-header"><span id="currentFileName">No File</span></div>
+            <div id="sourceWrapper"><div id="sourceEditor" contenteditable="false"></div></div>
+        </div>
+
+        <!-- PANE 3: WORKBENCH -->
+        <div class="pane">
+            <div class="pane-header">Staging</div>
+            <div class="workbench-split">
+                <div class="input-area">
+                    <textarea id="inputFront" placeholder="Front (Alt+1)"></textarea>
+                    <textarea id="inputBack" placeholder="Back (Alt+2)"></textarea>
+                    <button class="btn-stage" onclick="stageDraft()"><span>⬇ Stage</span> <span>Ctrl+Enter</span></button>
+                </div>
+                <div class="pane-header" style="background:transparent; border-top:none; border-bottom:1px solid var(--border); font-size:0.7rem;">Pending</div>
+                <div class="draft-area" id="draftList"></div>
+                <!-- FIXED: Added flex-shrink: 0 to ensure visibility -->
+                <div style="padding:10px; border-top: 1px solid var(--border); flex-shrink: 0;">
+                    <button class="btn-commit-all" onclick="commitAllDrafts()">Commit All ➔</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- PANE 4: EXPORT -->
+        <div class="pane">
+            <div class="pane-header">Export Queue</div>
+            <div class="card-list" id="finalList"></div>
+            <div style="padding:10px;">
+                <button class="primary" style="width:100%" onclick="downloadCSV()">Download CSV</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- FOOTER STATS -->
+    <div class="footer-bar">
+        <div class="stat-group">
+            <div class="stat-item"><span class="stat-label">WORDS:</span><span class="stat-value" id="statWords">0</span></div>
+            <div class="stat-divider"></div>
+            <div class="stat-item"><span class="stat-label">CHARS:</span><span class="stat-value" id="statChars">0</span></div>
+        </div>
+        <div class="stat-group">
+            <div class="stat-item"><span class="stat-label">DRAFTS:</span><span class="stat-value" id="statDrafts" style="color:var(--orange)">0</span></div>
+            <div class="stat-divider"></div>
+            <div class="stat-item"><span class="stat-label" style="color:var(--green)">QUEUE:</span><span class="stat-value" id="statTotal" style="color:var(--green)">0</span></div>
+        </div>
+    </div>
+
+    <!-- STATS MODAL (The Visual Upgrade) -->
+    <div id="statsModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <div class="modal-title">My Statistics</div>
+                <button onclick="document.getElementById('statsModal').style.display='none'" style="background:none; border:none; color:white; font-size:1.5rem;">✕</button>
+            </div>
+
+            <!-- Top Cards -->
+            <div class="stat-grid">
+                <div class="stat-card">
+                    <span class="stat-card-num c-green" id="modalTotalWords">0</span>
+                    <span class="stat-card-label">Words Generated</span>
+                </div>
+                <div class="stat-card">
+                    <span class="stat-card-num c-orange" id="modalTotalChars">0</span>
+                    <span class="stat-card-label">Characters</span>
+                </div>
+                <div class="stat-card">
+                    <span class="stat-card-num c-purple" id="modalTotalCards">0</span>
+                    <span class="stat-card-label">Cards Created</span>
+                </div>
+            </div>
+
+            <!-- Graph -->
+            <div class="chart-container">
+                <canvas id="myChart"></canvas>
+            </div>
+
+            <!-- Table -->
+            <div style="margin-top: 20px;">
+                <h3 style="margin-bottom: 15px; font-size: 1rem; color: #94a3b8;">History by Month</h3>
+                <table class="history-table">
+                    <thead>
+                        <tr>
+                            <th>Month</th>
+                            <th>Words</th>
+                            <th>Characters</th>
+                            <th>Cards Created</th>
+                        </tr>
+                    </thead>
+                    <tbody id="historyTableBody">
+                        <!-- JS fills this -->
+                    </tbody>
+                </table>
+            </div>
+
+            <button class="close-btn" onclick="document.getElementById('statsModal').style.display='none'">Close</button>
+        </div>
+    </div>
+
+    <div id="selectionPopup">
+        <button onclick="sendSelection('front')">Front</button>
+        <button onclick="sendSelection('back')">Back</button>
+    </div>
+
+    <!-- FIREBASE & CHART MODULES -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+        import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+        import { getDatabase, ref, onValue, runTransaction, get } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js";
+
+        // --- YOUR INTEGRATED KEYS ---
+        const firebaseConfig = {
+            apiKey: "AIzaSyAUioj0PYXuWnqN38g3oVvg-lP_r42c-fI",
+            authDomain: "logseq-to-anki.firebaseapp.com",
+            databaseURL: "https://logseq-to-anki-default-rtdb.firebaseio.com",
+            projectId: "logseq-to-anki",
+            storageBucket: "logseq-to-anki.firebasestorage.app",
+            messagingSenderId: "210112636810",
+            appId: "1:210112636810:web:f832c90ef178f3c5e14a73"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const db = getDatabase(app);
+        
+        let currentUser = null;
+        let chartInstance = null;
+
+        // AUTH
+        signInAnonymously(auth).catch((error) => console.error("Auth Failed", error));
+        onAuthStateChanged(auth, (user) => {
+            if (user) {
+                currentUser = user;
+            }
+        });
+
+        function getCurrentMonthKey() {
+            const date = new Date();
+            return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+        }
+
+        // SAVE STATS (Updated to save Object)
+        window.saveBatchStats = function(cardCount, wordCount, charCount) {
+            if(!currentUser || cardCount <= 0) return;
+            const monthKey = getCurrentMonthKey();
+            const statsRef = ref(db, `users/${currentUser.uid}/stats/${monthKey}`);
+            
+            runTransaction(statsRef, (currentData) => {
+                if (currentData === null) {
+                    return { cardCount: cardCount, wordCount: wordCount, charCount: charCount };
+                }
+                return {
+                    cardCount: (currentData.cardCount || 0) + cardCount,
+                    wordCount: (currentData.wordCount || 0) + wordCount,
+                    charCount: (currentData.charCount || 0) + charCount
+                };
+            }).then(() => console.log("Stats Saved"));
+        };
+
+        // FETCH & RENDER STATS MODAL
+        window.openStatsModal = async function() {
+            if(!currentUser) { alert("Please wait for Firebase connection."); return; }
+            document.getElementById('statsModal').style.display = 'flex';
+            
+            const statsRef = ref(db, `users/${currentUser.uid}/stats`);
+            const snapshot = await get(statsRef);
+            
+            if (!snapshot.exists()) return;
+
+            const data = snapshot.val();
+            const months = Object.keys(data).sort();
+            
+            // 1. Aggregates
+            let totalWords = 0, totalChars = 0, totalCards = 0;
+            const tableRows = [];
+            const labels = [];
+            const wordData = [];
+            const charData = [];
+            const cardData = [];
+
+            months.forEach(m => {
+                const entry = data[m];
+                totalWords += (entry.wordCount || 0);
+                totalChars += (entry.charCount || 0);
+                totalCards += (entry.cardCount || 0);
+
+                labels.push(m);
+                wordData.push(entry.wordCount || 0);
+                charData.push(entry.charCount || 0);
+                cardData.push(entry.cardCount || 0);
+
+                tableRows.unshift(`
+                    <tr>
+                        <td>${m}</td>
+                        <td style="color:#10b981">${(entry.wordCount || 0).toLocaleString()}</td>
+                        <td style="color:#f59e0b">${(entry.charCount || 0).toLocaleString()}</td>
+                        <td style="color:#8b5cf6">${(entry.cardCount || 0).toLocaleString()}</td>
+                    </tr>
+                `);
+            });
+
+            // Update DOM
+            document.getElementById('modalTotalWords').innerText = totalWords.toLocaleString();
+            document.getElementById('modalTotalChars').innerText = totalChars.toLocaleString();
+            document.getElementById('modalTotalCards').innerText = totalCards.toLocaleString();
+            document.getElementById('historyTableBody').innerHTML = tableRows.join('');
+
+            // Render Chart
+            renderChart(labels, wordData, cardData);
+        };
+
+        function renderChart(labels, wordData, cardData) {
+            const ctx = document.getElementById('myChart').getContext('2d');
+            if (chartInstance) chartInstance.destroy();
+
+            chartInstance = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: labels,
+                    datasets: [
+                        {
+                            label: 'Words',
+                            data: wordData,
+                            backgroundColor: 'rgba(16, 185, 129, 0.7)',
+                            yAxisID: 'y',
+                        },
+                        {
+                            label: 'Cards Created',
+                            data: cardData,
+                            borderColor: '#8b5cf6',
+                            backgroundColor: 'rgba(139, 92, 246, 0.2)',
+                            type: 'line',
+                            yAxisID: 'y1',
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    interaction: { mode: 'index', intersect: false },
+                    plugins: {
+                        legend: { labels: { color: '#cbd5e1' } }
+                    },
+                    scales: {
+                        x: { ticks: { color: '#64748b' }, grid: { color: '#334155' } },
+                        y: {
+                            type: 'linear', display: true, position: 'left',
+                            ticks: { color: '#10b981' }, grid: { color: '#334155' }
+                        },
+                        y1: {
+                            type: 'linear', display: true, position: 'right',
+                            ticks: { color: '#8b5cf6' }, grid: { drawOnChartArea: false }
+                        },
+                    }
+                }
+            });
+        }
+    </script>
+
+    <!-- MAIN APP LOGIC -->
+    <script>
+        let allFiles=[], currentFileHandle=null, lastModified=0, watchInterval=null, currentRawText="";
+        let drafts=[], cards=[];
+
+        async function openGraphFolder() {
+            try {
+                const dirHandle = await window.showDirectoryPicker();
+                allFiles=[]; let scanned=false;
+                try { await scanDirectory(await dirHandle.getDirectoryHandle('pages',{create:false}),'pages'); scanned=true; } catch(e){}
+                try { await scanDirectory(await dirHandle.getDirectoryHandle('journals',{create:false}),'journals'); scanned=true; } catch(e){}
+                if(!scanned) await scanDirectory(dirHandle,'root');
+                
+                allFiles.sort((a,b)=>a.name.localeCompare(b.name));
+                renderFileList(allFiles);
+                document.getElementById('statusBadge').classList.add('active');
+                document.getElementById('statusText').innerText = "Graph Loaded";
+            } catch(err) { console.error(err); alert("Browser requires permissions."); }
+        }
+
+        async function scanDirectory(h,f) {
+            for await(const e of h.values()) if(e.kind==='file' && e.name.endsWith('.md')) allFiles.push({name:e.name,handle:e,folder:f});
+        }
+
+        function renderFileList(list) {
+            const el = document.getElementById('fileListArea'); el.innerHTML='';
+            if(list.length===0) return el.innerHTML='<div style="padding:15px;color:#64748b;">No .md files</div>';
+            list.forEach(f=>{
+                const d=document.createElement('div'); d.className='file-item'; d.innerText=f.name;
+                d.onclick=()=>loadFile(f);
+                if(currentFileHandle && currentFileHandle.name===f.name) d.classList.add('selected');
+                el.appendChild(d);
+            });
+        }
+        function filterFiles() {
+            const q=document.getElementById('fileSearch').value.toLowerCase();
+            renderFileList(allFiles.filter(f=>f.name.toLowerCase().includes(q)));
+        }
+
+        async function loadFile(f) {
+            currentFileHandle=f.handle; document.getElementById('currentFileName').innerText=f.name;
+            filterFiles(); await loadContent();
+            if(watchInterval) clearInterval(watchInterval);
+            watchInterval=setInterval(checkChanges,1000);
+        }
+        async function loadContent() {
+            const f=await currentFileHandle.getFile(); lastModified=f.lastModified;
+            currentRawText=await f.text(); renderFile(); updateStats();
+        }
+        async function checkChanges() {
+            if(!currentFileHandle || !window.getSelection().isCollapsed) return;
+            const f=await currentFileHandle.getFile(); if(f.lastModified>lastModified) await loadContent();
+        }
+
+        function renderFile() {
+            const ed=document.getElementById('sourceEditor');
+            const wrap=document.getElementById('sourceWrapper');
+            const top=wrap.scrollTop;
+            
+            if(!document.getElementById('smartScanToggle').checked) { ed.innerText=currentRawText; }
+            else {
+                const lines=currentRawText.split('\n');
+                ed.innerHTML = lines.map(l=>{
+                    let c = l.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+                    const m = c.match(/^(\s*-\s*)?\*\*(.*?)\*\*[:?]?\s+(.*)$/);
+                    if(m && m[3].trim().length>0) return `<div class="auto-card" data-f="${escA(m[2])}" data-b="${escA(m[3])}">${c}</div>`;
+                    return c.replace(/(\^\^.*?\^\^)/g,'<span class="suggestion" data-txt="$1">$1</span>')
+                            .replace(/(\*\*.*?\*\*)/g,'<span class="suggestion" data-txt="$1">$1</span>');
+                }).join('\n');
+                
+                document.querySelectorAll('.auto-card').forEach(e=>e.onclick=(ev)=>{
+                    ev.stopPropagation(); setInputs(e.getAttribute('data-f'),e.getAttribute('data-b'));
+                });
+                document.querySelectorAll('.suggestion').forEach(e=>e.onclick=(ev)=>{
+                    ev.stopPropagation(); showPop(e);
+                });
+            }
+            wrap.scrollTop=top;
+        }
+
+        function stageDraft() {
+            const f=document.getElementById('inputFront').value.trim();
+            const b=document.getElementById('inputBack').value.trim();
+            if(!f||!b) return;
+            drafts.push({front:f,back:b});
+            document.getElementById('inputFront').value=''; document.getElementById('inputBack').value='';
+            document.getElementById('inputFront').focus(); renderDrafts();
+        }
+        function renderDrafts() {
+            const el=document.getElementById('draftList'); el.innerHTML='';
+            drafts.forEach((d,i)=>{
+                const div=document.createElement('div'); div.className='draft-item';
+                div.innerHTML=`<b>${esc(d.front)}</b><br><span style="color:#94a3b8">${esc(d.back)}</span>
+                <div class="draft-actions"><button class="mini-btn btn-del" onclick="drafts.splice(${i},1);renderDrafts()">Discard</button>
+                <button class="mini-btn btn-push" onclick="cards.push(drafts[${i}]);drafts.splice(${i},1);renderDrafts();renderQueue()">Add ➔</button></div>`;
+                el.appendChild(div);
+            });
+            el.scrollTop=el.scrollHeight; updateStats();
+        }
+        function commitAllDrafts() { cards.push(...drafts); drafts=[]; renderDrafts(); renderQueue(); }
+        function renderQueue() {
+            const el=document.getElementById('finalList'); el.innerHTML='';
+            cards.forEach((c,i)=>{
+                const div=document.createElement('div'); div.className='saved-card';
+                div.innerHTML=`<b>${esc(c.front)}</b><br>${esc(c.back)}
+                <button onclick="cards.splice(${i},1);renderQueue()" style="position:absolute;top:5px;right:5px;border:none;background:none;color:#ef4444;cursor:pointer;">✕</button>`;
+                el.appendChild(div);
+            });
+            el.scrollTop=el.scrollHeight; updateStats();
+        }
+
+        function downloadCSV() {
+            if(cards.length===0) return alert("Queue empty!");
+            
+            // Calculate Stats for Firebase before download
+            let totalW=0, totalC=0;
+            cards.forEach(c => {
+                totalW += (c.front + " " + c.back).split(/\s+/).length;
+                totalC += (c.front.length + c.back.length);
+            });
+
+            let csv="Front,Back\n";
+            cards.forEach(c=>{
+                let f=`"${c.front.replace(/"/g,'""').replace(/\n/g,'<br>')}"`;
+                let b=`"${c.back.replace(/"/g,'""').replace(/\n/g,'<br>')}"`;
+                csv+=`${f},${b}\n`;
+            });
+            const blob=new Blob([csv],{type:'text/csv;charset=utf-8;'});
+            const link=document.createElement("a"); link.href=URL.createObjectURL(blob); link.download="anki_export.csv"; link.click();
+            
+            // SAVE TO FIREBASE
+            if(window.saveBatchStats) {
+                window.saveBatchStats(cards.length, totalW, totalC);
+            }
+        }
+
+        function updateStats() {
+            const t=currentRawText||"";
+            document.getElementById('statWords').innerText=t.trim()===""?0:t.trim().split(/\s+/).length.toLocaleString();
+            document.getElementById('statChars').innerText=t.length.toLocaleString();
+            document.getElementById('statDrafts').innerText=drafts.length;
+            document.getElementById('statTotal').innerText=cards.length;
+        }
+        function setInputs(f,b) {
+            const iF=document.getElementById('inputFront'); iF.value=f;
+            document.getElementById('inputBack').value=b;
+            iF.style.borderColor='#10b981'; setTimeout(()=>iF.style.borderColor='#334155',300);
+        }
+        function showPop(el) {
+            const p=document.getElementById('selectionPopup'); const r=el.getBoundingClientRect();
+            p.style.display='flex'; p.style.top=(r.top-40)+'px'; p.style.left=r.left+'px';
+            const range=document.createRange(); range.selectNodeContents(el);
+            window.getSelection().removeAllRanges(); window.getSelection().addRange(range);
+        }
+        function sendSelection(t) {
+            const txt=window.getSelection().toString().trim().replace(/^\*\*|\*\*$/g,'').replace(/^\^\^|\^\^$/g,'');
+            document.getElementById(t==='front'?'inputFront':'inputBack').value=txt;
+            document.getElementById('selectionPopup').style.display='none';
+        }
+        function esc(t){return t.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");}
+        function escA(t){return t.replace(/"/g,"&quot;");}
+        
+        document.addEventListener('mouseup',e=>{
+            const s=window.getSelection();
+            if(s.isCollapsed||!document.getElementById('sourceEditor').contains(s.anchorNode)) document.getElementById('selectionPopup').style.display='none';
+            else showPop(s.getRangeAt(0));
+        });
+        document.addEventListener('keydown',e=>{
+            if(e.ctrlKey&&e.key==='Enter'){e.preventDefault();stageDraft();}
+            if(e.altKey&&e.key==='1'){e.preventDefault();sendSelection('front');}
+            if(e.altKey&&e.key==='2'){e.preventDefault();sendSelection('back');}
+        });
+    </script>
+</body>
+</html>
