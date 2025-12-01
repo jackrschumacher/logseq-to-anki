@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Logseq Anki Dashboard</title>
+    <title>Logseq to Anki</title>
     <!-- Favicon -->
     <link rel="icon" type="image/x-icon" href="favicon.ico">
     <!-- Chart.js for the Graph -->
@@ -258,7 +258,7 @@
 
     <div class="top-bar">
         <div class="controls-left">
-            <h1 style="margin:0; font-size: 1.1rem;">Logseq Graph Explorer</h1>
+            <h1 style="margin:0; font-size: 1.1rem;">Logseq to Anki</h1>
             <button class="primary" onclick="openGraphFolder()">📂 Select Graph Folder</button>
             <label class="toggle-switch">
                 <input type="checkbox" id="smartScanToggle" checked onchange="renderCurrentFile()">
@@ -678,7 +678,8 @@
                 totalC += (c.front.length + c.back.length);
             });
 
-            let csv="Front,Back\n";
+            // FIXED: Removed "Front,Back\n" header
+            let csv="";
             cards.forEach(c=>{
                 let f=`"${c.front.replace(/"/g,'""').replace(/\n/g,'<br>')}"`;
                 let b=`"${c.back.replace(/"/g,'""').replace(/\n/g,'<br>')}"`;
