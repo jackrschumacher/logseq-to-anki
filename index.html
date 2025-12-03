@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Logseq to Anki</title>
+    <title>Logseq Anki Dashboard</title>
     <!-- Favicon -->
     <link rel="icon" type="image/x-icon" href="favicon.ico">
     <!-- Chart.js for the Graph -->
@@ -11,7 +11,7 @@
         :root {
             --bg: #0f172a; --surface: #1e293b; --border: #334155;
             --text: #e2e8f0; --accent: #3b82f6; --green: #10b981;
-            --orange: #f59e0b; --red: #ef4444; --purple: #8b5cf6;
+            --orange: #f59e0b; --red: #ef4444; --purple: #8b5cf6; --pink: #ec4899;
             --sidebar-width: 220px;
         }
 
@@ -52,45 +52,22 @@
         /* --- WORKSPACE (RESPONSIVE GRID) --- */
         .workspace {
             display: grid; 
-            /* Default Desktop: 4 Columns */
             grid-template-columns: var(--sidebar-width) 1fr 320px 240px; 
             grid-template-rows: 1fr;
             flex: 1; min-height: 0; overflow: hidden;
         }
 
-        /* Tablet: 2x2 Grid */
         @media (max-width: 1200px) {
-            .workspace {
-                grid-template-columns: 250px 1fr;
-                grid-template-rows: 1fr 1fr; /* Two rows */
-            }
-            /* Fix pane borders for grid */
+            .workspace { grid-template-columns: 250px 1fr; grid-template-rows: 1fr 1fr; }
             .pane { border-bottom: 1px solid var(--border); }
         }
 
-        /* Mobile: Stack Vertical */
         @media (max-width: 768px) {
-            body { overflow: auto; height: auto; } /* Allow body scroll */
-            .workspace {
-                display: flex;
-                flex-direction: column;
-                overflow: visible;
-                height: auto;
-            }
-            .pane {
-                height: 500px; /* Fixed height for panes on mobile to allow internal scrolling */
-                border-right: none;
-                border-bottom: 4px solid var(--bg); /* Thicker separator */
-            }
-            /* Make source editor taller on mobile */
+            body { overflow: auto; height: auto; }
+            .workspace { display: flex; flex-direction: column; overflow: visible; height: auto; }
+            .pane { height: 500px; border-right: none; border-bottom: 4px solid var(--bg); }
             .pane:nth-child(2) { height: 600px; }
-            
-            .top-bar {
-                padding: 10px;
-                flex-wrap: wrap;
-                height: auto;
-                gap: 10px;
-            }
+            .top-bar { padding: 10px; flex-wrap: wrap; height: auto; gap: 10px; }
             .controls-left { flex-wrap: wrap; }
         }
         
@@ -152,6 +129,23 @@
         }
         .btn-stage:hover { background: var(--accent); color: white; }
         
+        .btn-ai {
+            background: linear-gradient(135deg, #6366f1, #8b5cf6); border: none; color: white;
+            padding: 6px 12px; border-radius: 4px; cursor: pointer; font-weight: bold;
+            display: flex; align-items: center; justify-content: center; gap: 6px;
+            font-size: 0.75rem; transition: opacity 0.2s;
+        }
+        .btn-ai:hover { opacity: 0.9; }
+        .btn-ai.loading { opacity: 0.8; cursor: wait; pointer-events: none; }
+
+        /* Loading Spinner Animation */
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        .spinner {
+            width: 10px; height: 10px; border: 2px solid #ffffff; 
+            border-top: 2px solid transparent; border-radius: 50%;
+            animation: spin 1s linear infinite; display: inline-block;
+        }
+
         .btn-commit-all {
             background: var(--green); color: white; border: none; padding: 12px;
             border-radius: 4px; cursor: pointer; font-weight: bold; margin-top: 10px; width: 100%;
@@ -174,27 +168,26 @@
             position: relative; font-size: 0.85rem; opacity: 0.8;
         }
 
-        /* Utility Buttons */
         .clear-btn {
             background: transparent; border: none; color: #64748b; 
             font-size: 1rem; padding: 4px; border-radius: 4px;
         }
         .clear-btn:hover { background: rgba(239, 68, 68, 0.1); color: var(--red); }
 
-        /* --- FOOTER & MODAL --- */
+        /* --- FOOTER & MODALS --- */
         .footer-bar {
             height: 30px; background: var(--surface); border-top: 1px solid var(--border);
             display: flex; align-items: center; padding: 0 15px; font-size: 0.75rem; color: #94a3b8;
             justify-content: space-between; flex-shrink: 0; user-select: none;
-            position: sticky; bottom: 0; z-index: 100; /* Ensure visible on mobile scroll */
+            position: sticky; bottom: 0; z-index: 100;
         }
         .stat-group { display: flex; gap: 20px; }
         .stat-item { display: flex; gap: 6px; align-items: center; }
         .stat-value { color: var(--text); font-weight: 600; font-family: monospace; }
         .stat-divider { width: 1px; height: 14px; background: var(--border); }
 
-        /* STATS MODAL STYLES */
-        #statsModal {
+        /* Generic Modal Styles */
+        .modal-overlay {
             position: fixed; top: 0; left: 0; width: 100%; height: 100%;
             background: rgba(0,0,0,0.85); z-index: 2000;
             display: none; justify-content: center; align-items: center;
@@ -205,51 +198,41 @@
             width: 900px; max-width: 95%; max-height: 90vh; overflow-y: auto;
             padding: 30px; box-shadow: 0 20px 50px rgba(0,0,0,0.5);
         }
-        .modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 30px; }
+        .modal-small { width: 500px; } /* Smaller variant */
+        
+        .modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
         .modal-title { font-size: 1.5rem; font-weight: bold; }
         
-        .stat-grid {
-            display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; margin-bottom: 30px;
-        }
-        .stat-card {
-            background: #1e293b; border: 1px solid var(--border); border-radius: 8px;
-            padding: 20px; text-align: center; display: flex; flex-direction: column; gap: 5px;
-        }
-        .stat-card-num { font-size: 1.8rem; font-weight: bold; }
+        .stat-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 20px; margin-bottom: 30px; }
+        .stat-card { background: #1e293b; border: 1px solid var(--border); border-radius: 8px; padding: 20px; text-align: center; }
+        .stat-card-num { font-size: 1.8rem; font-weight: bold; display: block; }
         .stat-card-label { font-size: 0.8rem; color: #94a3b8; text-transform: uppercase; letter-spacing: 1px;}
-        
-        /* Specific Colors for cards */
-        .c-green { color: var(--green); }
-        .c-orange { color: var(--orange); }
-        .c-purple { color: var(--purple); }
+        .c-green { color: var(--green); } .c-orange { color: var(--orange); } .c-purple { color: var(--purple); } .c-pink { color: var(--pink); }
 
-        .chart-container {
-            background: #1e293b; border: 1px solid var(--border); border-radius: 8px;
-            padding: 20px; margin-bottom: 30px; height: 350px; position: relative;
-        }
-
-        .history-table {
-            width: 100%; border-collapse: collapse; font-size: 0.9rem;
-        }
+        .chart-container { background: #1e293b; border: 1px solid var(--border); border-radius: 8px; padding: 20px; margin-bottom: 30px; height: 350px; position: relative; }
+        .history-table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
         .history-table th { text-align: left; color: #94a3b8; padding: 10px; border-bottom: 1px solid var(--border); }
         .history-table td { padding: 15px 10px; border-bottom: 1px solid rgba(255,255,255,0.05); }
-        .history-table tr:last-child td { border-bottom: none; }
 
-        .close-btn {
-            background: #1e293b; border: 1px solid var(--border); color: white;
-            padding: 10px 20px; border-radius: 6px; margin-top: 20px; width: 100%;
-        }
+        .close-btn { background: #1e293b; border: 1px solid var(--border); color: white; padding: 10px; width: 100%; border-radius: 6px; }
         .close-btn:hover { background: #334155; }
 
+        /* AI Config Form */
+        .config-group { margin-bottom: 15px; }
+        .config-group label { display: block; margin-bottom: 5px; color: #94a3b8; font-size: 0.9rem; }
+        .config-select, .config-input { 
+            width: 100%; padding: 10px; background: #1e293b; border: 1px solid #334155; 
+            color: white; border-radius: 6px; box-sizing: border-box; 
+        }
+        .help-box { 
+            background: rgba(59, 130, 246, 0.1); border: 1px solid rgba(59, 130, 246, 0.3); 
+            padding: 10px; border-radius: 6px; margin-top: 10px; font-size: 0.85rem; color: #cbd5e1; line-height: 1.5;
+        }
+        .help-box a { color: #60a5fa; }
+
         /* --- POPUP --- */
-        #selectionPopup {
-            position: fixed; background: #0f172a; border: 1px solid var(--accent);
-            padding: 5px; display: none; gap: 5px; z-index: 1000; border-radius: 6px;
-        }
-        #selectionPopup button {
-            background: var(--surface); border: 1px solid var(--border); color: var(--text);
-            padding: 5px 10px; border-radius: 4px; cursor: pointer;
-        }
+        #selectionPopup { position: fixed; background: #0f172a; border: 1px solid var(--accent); padding: 5px; display: none; gap: 5px; z-index: 1000; border-radius: 6px; }
+        #selectionPopup button { background: var(--surface); border: 1px solid var(--border); color: var(--text); padding: 5px 10px; border-radius: 4px; cursor: pointer; }
         #selectionPopup button:hover { background: var(--accent); color: white; }
         button.primary { background: var(--accent); color: white; border: none; padding: 8px 12px; border-radius: 4px; cursor: pointer; }
     </style>
@@ -258,7 +241,7 @@
 
     <div class="top-bar">
         <div class="controls-left">
-            <h1 style="margin:0; font-size: 1.1rem;">Logseq to Anki</h1>
+            <h1 style="margin:0; font-size: 1.1rem;">Logseq Graph Explorer</h1>
             <button class="primary" onclick="openGraphFolder()">📂 Select Graph Folder</button>
             <label class="toggle-switch">
                 <input type="checkbox" id="smartScanToggle" checked onchange="renderCurrentFile()">
@@ -266,7 +249,10 @@
             </label>
             <div id="statusBadge" class="status-badge"><div class="pulse"></div> <span id="statusText">No Graph</span></div>
         </div>
-        <div>
+        <div style="display:flex; gap:10px;">
+            <button onclick="openAIConfigModal()" style="background:transparent; border:1px solid #8b5cf6; color:#a78bfa; padding:6px 10px; border-radius:4px; font-size:0.85rem;">
+                ✨ AI Setup
+            </button>
             <button onclick="openStatsModal()" style="background: transparent; border: 1px solid var(--border); color: #cbd5e1; padding: 6px 12px; border-radius: 4px; font-size: 0.85rem;">
                 📊 View Stats
             </button>
@@ -292,7 +278,14 @@
             <div class="pane-header">Staging</div>
             <div class="workbench-split">
                 <div class="input-area">
-                    <textarea id="inputFront" placeholder="Front (Alt+1)"></textarea>
+                    <div style="display:flex; gap:10px; align-items:center; margin-bottom:5px; justify-content: space-between;">
+                        <span style="font-size:0.75rem; color:#64748b; font-weight:bold;">AI TOOLS</span>
+                        <div style="display:flex; gap:5px;">
+                            <button class="btn-ai" onclick="generateAICard('single')"><span>✨ Single</span></button>
+                            <button class="btn-ai" style="background: linear-gradient(135deg, #ec4899, #db2777);" onclick="generateAICard('batch')"><span>🚀 Batch (File)</span></button>
+                        </div>
+                    </div>
+                    <textarea id="inputFront" placeholder="Front (Alt+1) - Or highlight text on left + AI Single"></textarea>
                     <textarea id="inputBack" placeholder="Back (Alt+2)"></textarea>
                     <button class="btn-stage" onclick="stageDraft()"><span>⬇ Stage</span> <span>Ctrl+Enter</span></button>
                 </div>
@@ -334,14 +327,51 @@
         </div>
     </div>
 
+    <!-- AI CONFIG MODAL -->
+    <div id="aiConfigModal" class="modal-overlay">
+        <div class="modal-content modal-small">
+            <div class="modal-header">
+                <div class="modal-title">✨ AI Settings</div>
+                <button onclick="document.getElementById('aiConfigModal').style.display='none'" style="background:none; border:none; color:white; font-size:1.5rem;">✕</button>
+            </div>
+            <div class="config-group">
+                <label>Select Provider</label>
+                <select id="aiProvider" class="config-select" onchange="updateAIHelp()">
+                    <option value="gemini">Google Gemini (Free)</option>
+                    <option value="openai">OpenAI ChatGPT (Paid)</option>
+                </select>
+            </div>
+            <div class="config-group">
+                <label>API Key</label>
+                <input type="password" id="aiKeyInput" class="config-input" placeholder="sk-..." />
+            </div>
+            
+            <!-- NEW: Model Selection -->
+            <div class="config-group" id="modelSelectGroup" style="display:none;">
+                <label>Model Name</label>
+                <div style="display:flex; gap:10px;">
+                    <select id="aiModel" class="config-select">
+                        <!-- Populated by JS -->
+                    </select>
+                    <button onclick="checkGeminiConnection()" style="background:#3b82f6; color:white; border:none; border-radius:4px; padding:0 10px; font-size:0.8rem; white-space:nowrap;">Check Key</button>
+                </div>
+                <div style="font-size:0.75rem; color:#64748b; margin-top:4px;">Click "Check Key" to load available models.</div>
+            </div>
+
+            <div id="aiHelpBox" class="help-box"></div>
+            <div style="margin-top:20px;">
+                <button class="primary" style="width:100%" onclick="saveAIConfig()">Save Configuration</button>
+            </div>
+        </div>
+    </div>
+
     <!-- STATS MODAL -->
-    <div id="statsModal">
+    <div id="statsModal" class="modal-overlay">
         <div class="modal-content">
             <div class="modal-header">
                 <div class="modal-title">Community Statistics</div>
                 <button onclick="document.getElementById('statsModal').style.display='none'" style="background:none; border:none; color:white; font-size:1.5rem;">✕</button>
             </div>
-
             <div class="stat-grid">
                 <div class="stat-card">
                     <span class="stat-card-num c-green" id="modalTotalWords">0</span>
@@ -355,22 +385,19 @@
                     <span class="stat-card-num c-purple" id="modalTotalCards">0</span>
                     <span class="stat-card-label">Cards Created</span>
                 </div>
+                <div class="stat-card">
+                    <span class="stat-card-num c-pink" id="modalTotalAI">0</span>
+                    <span class="stat-card-label">AI Generated</span>
+                </div>
             </div>
-
-            <div class="chart-container">
-                <canvas id="myChart"></canvas>
-            </div>
-
+            <div class="chart-container"><canvas id="myChart"></canvas></div>
             <div style="margin-top: 20px;">
                 <h3 style="margin-bottom: 15px; font-size: 1rem; color: #94a3b8;">History by Month</h3>
                 <table class="history-table">
-                    <thead>
-                        <tr><th>Month</th><th>Words</th><th>Characters</th><th>Cards Created</th></tr>
-                    </thead>
+                    <thead><tr><th>Month</th><th>Words</th><th>Characters</th><th>Cards</th><th>AI Gen</th></tr></thead>
                     <tbody id="historyTableBody"></tbody>
                 </table>
             </div>
-
             <button class="close-btn" onclick="document.getElementById('statsModal').style.display='none'">Close</button>
         </div>
     </div>
@@ -386,21 +413,20 @@
         import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
         import { getDatabase, ref, onValue, runTransaction, get } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js";
 
-        // --- KEYS FROM CHAT HISTORY ---
+        // --- KEYS ---
         const firebaseConfig = {
-            apiKey: "AIzaSyAUioj0PYXuWnqN38g3oVvg-lP_r42c-fI",
+            apiKey: "__API_KEY__",
             authDomain: "logseq-to-anki.firebaseapp.com",
             databaseURL: "https://logseq-to-anki-default-rtdb.firebaseio.com",
             projectId: "logseq-to-anki",
             storageBucket: "logseq-to-anki.firebasestorage.app",
-            messagingSenderId: "210112636810",
-            appId: "1:210112636810:web:f832c90ef178f3c5e14a73"
+            messagingSenderId: "__MESSAGING_ID__",
+            appId: "__APP_ID__"
         };
 
         const app = initializeApp(firebaseConfig);
         const auth = getAuth(app);
         const db = getDatabase(app);
-        
         let currentUser = null;
         let chartInstance = null;
 
@@ -412,38 +438,58 @@
             return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
         }
 
-        // SAVE STATS
-        window.saveBatchStats = function(cardCount, wordCount, charCount) {
-            if(!currentUser) { console.warn("Firebase: Not connected"); return; }
-            if(cardCount <= 0) return;
-            
+        // TRACK AI STATS (New Function)
+        window.trackAIStats = function(count) {
+            if(!currentUser || count <= 0) return;
             const monthKey = getCurrentMonthKey();
             
-            // 1. Monthly History
+            // Update Global Stats (History)
             const statsRef = ref(db, `global_stats/${monthKey}`);
             runTransaction(statsRef, (data) => {
-                if (!data) return { cardCount, wordCount, charCount };
+                if (!data) return { cardCount:0, wordCount:0, charCount:0, aiCount: count };
                 return {
+                    ...data,
+                    aiCount: (data.aiCount || 0) + count
+                };
+            });
+
+            // Update Global Totals
+            const totalRef = ref(db, `global_totals`);
+            runTransaction(totalRef, (data) => {
+                if (!data) return { cardCount:0, wordCount:0, charCount:0, aiCount: count };
+                return {
+                    ...data,
+                    aiCount: (data.aiCount || 0) + count
+                };
+            }).then(() => console.log("AI Stats Tracked"));
+        };
+
+        // SAVE BATCH STATS (Standard Exports)
+        window.saveBatchStats = function(cardCount, wordCount, charCount) {
+            if(!currentUser || cardCount <= 0) return;
+            const monthKey = getCurrentMonthKey();
+            
+            const statsRef = ref(db, `global_stats/${monthKey}`);
+            runTransaction(statsRef, (data) => {
+                if (!data) return { cardCount, wordCount, charCount, aiCount:0 };
+                return {
+                    ...data,
                     cardCount: (data.cardCount || 0) + cardCount,
                     wordCount: (data.wordCount || 0) + wordCount,
                     charCount: (data.charCount || 0) + charCount
                 };
             });
 
-            // 2. All-Time Totals
             const totalRef = ref(db, `global_totals`);
             runTransaction(totalRef, (data) => {
-                if (!data) return { cardCount, wordCount, charCount };
+                if (!data) return { cardCount, wordCount, charCount, aiCount:0 };
                 return {
+                    ...data,
                     cardCount: (data.cardCount || 0) + cardCount,
                     wordCount: (data.wordCount || 0) + wordCount,
                     charCount: (data.charCount || 0) + charCount
                 };
-            })
-            .then(() => console.log("Stats Saved!"))
-            .catch(err => {
-                console.error("DB Error:", err);
-            });
+            }).then(() => console.log("Export Stats Saved"));
         };
 
         // FETCH & RENDER STATS MODAL
@@ -455,60 +501,54 @@
             const totalsPromise = get(ref(db, `global_totals`));
 
             let historySnap, totalsSnap;
-            try {
-                [historySnap, totalsSnap] = await Promise.all([historyPromise, totalsPromise]);
-            } catch(e) { console.error("Read error", e); }
+            try { [historySnap, totalsSnap] = await Promise.all([historyPromise, totalsPromise]); } catch(e) { console.error("Read error", e); }
 
-            let totalWords=0, totalChars=0, totalCards=0;
+            let totalWords=0, totalChars=0, totalCards=0, totalAI=0;
 
-            // Try reading totals first
             if (totalsSnap && totalsSnap.exists()) {
                 const t = totalsSnap.val();
                 totalWords = t.wordCount || 0;
                 totalChars = t.charCount || 0;
                 totalCards = t.cardCount || 0;
+                totalAI = t.aiCount || 0;
             } 
             
-            const labels = [];
-            const wordData = [];
-            const cardData = [];
-            const tableRows = [];
+            const labels = [], wordData = [], cardData = [], tableRows = [];
 
             if (historySnap && historySnap.exists()) {
                 const data = historySnap.val();
                 const months = Object.keys(data).sort();
-                
-                let calcWords=0, calcChars=0, calcCards=0;
+                let calcWords=0, calcChars=0, calcCards=0, calcAI=0;
 
                 months.forEach(m => {
                     const entry = data[m];
                     calcWords += (entry.wordCount || 0);
                     calcChars += (entry.charCount || 0);
                     calcCards += (entry.cardCount || 0);
+                    calcAI += (entry.aiCount || 0);
 
                     labels.push(m);
                     wordData.push(entry.wordCount || 0);
                     cardData.push(entry.cardCount || 0);
 
-                    tableRows.unshift(`
-                        <tr>
-                            <td>${m}</td>
-                            <td style="color:#10b981">${(entry.wordCount || 0).toLocaleString()}</td>
-                            <td style="color:#f59e0b">${(entry.charCount || 0).toLocaleString()}</td>
-                            <td style="color:#8b5cf6">${(entry.cardCount || 0).toLocaleString()}</td>
-                        </tr>
-                    `);
+                    tableRows.unshift(`<tr>
+                        <td>${m}</td>
+                        <td style="color:#10b981">${(entry.wordCount||0).toLocaleString()}</td>
+                        <td style="color:#f59e0b">${(entry.charCount||0).toLocaleString()}</td>
+                        <td style="color:#8b5cf6">${(entry.cardCount||0).toLocaleString()}</td>
+                        <td style="color:#ec4899">${(entry.aiCount||0).toLocaleString()}</td>
+                    </tr>`);
                 });
 
-                // Fallback calculation if totals missing
-                if (!totalsSnap || !totalsSnap.exists()) {
-                    totalWords = calcWords; totalChars = calcChars; totalCards = calcCards;
+                if (!totalsSnap || !totalsSnap.exists()) { 
+                    totalWords = calcWords; totalChars = calcChars; totalCards = calcCards; totalAI = calcAI;
                 }
             }
 
             document.getElementById('modalTotalWords').innerText = totalWords.toLocaleString();
             document.getElementById('modalTotalChars').innerText = totalChars.toLocaleString();
             document.getElementById('modalTotalCards').innerText = totalCards.toLocaleString();
+            document.getElementById('modalTotalAI').innerText = totalAI.toLocaleString();
             document.getElementById('historyTableBody').innerHTML = tableRows.join('');
 
             renderChart(labels, wordData, cardData);
@@ -517,7 +557,6 @@
         function renderChart(labels, wordData, cardData) {
             const ctx = document.getElementById('myChart').getContext('2d');
             if (chartInstance) chartInstance.destroy();
-
             chartInstance = new Chart(ctx, {
                 type: 'bar',
                 data: {
@@ -651,34 +690,22 @@
             el.scrollTop=el.scrollHeight; updateStats();
         }
 
-        // --- CLEAR QUEUE FUNCTIONS ---
         window.clearDrafts = function() {
             if(drafts.length === 0) return;
-            if(confirm("Clear all pending drafts?")) {
-                drafts = [];
-                renderDrafts();
-            }
+            if(confirm("Clear all pending drafts?")) { drafts = []; renderDrafts(); }
         }
-
         window.clearQueue = function() {
             if(cards.length === 0) return;
-            if(confirm("Clear export queue?")) {
-                cards = [];
-                renderQueue();
-            }
+            if(confirm("Clear export queue?")) { cards = []; renderQueue(); }
         }
 
         function downloadCSV() {
             if(cards.length===0) return alert("Queue empty!");
-            
-            // Calculate Stats for Firebase before download
             let totalW=0, totalC=0;
             cards.forEach(c => {
                 totalW += (c.front + " " + c.back).split(/\s+/).length;
                 totalC += (c.front.length + c.back.length);
             });
-
-            // FIXED: Removed "Front,Back\n" header
             let csv="";
             cards.forEach(c=>{
                 let f=`"${c.front.replace(/"/g,'""').replace(/\n/g,'<br>')}"`;
@@ -687,11 +714,7 @@
             });
             const blob=new Blob([csv],{type:'text/csv;charset=utf-8;'});
             const link=document.createElement("a"); link.href=URL.createObjectURL(blob); link.download="anki_export.csv"; link.click();
-            
-            // SAVE TO FIREBASE
-            if(window.saveBatchStats) {
-                window.saveBatchStats(cards.length, totalW, totalC);
-            }
+            if(window.saveBatchStats) window.saveBatchStats(cards.length, totalW, totalC);
         }
 
         function updateStats() {
@@ -730,6 +753,262 @@
             if(e.altKey&&e.key==='1'){e.preventDefault();sendSelection('front');}
             if(e.altKey&&e.key==='2'){e.preventDefault();sendSelection('back');}
         });
+
+        // --- AI INTEGRATION (GEMINI + OPENAI) ---
+        const GH_GEMINI_KEY = "__GEMINI_API_KEY__";
+        const GH_OPENAI_KEY = "__OPENAI_API_KEY__";
+
+        let aiConfig = {
+            provider: localStorage.getItem('ai_provider') || 'gemini',
+            geminiKey: localStorage.getItem('gemini_key') || (GH_GEMINI_KEY !== "__GEMINI_API_KEY__" ? GH_GEMINI_KEY : ""),
+            openAIKey: localStorage.getItem('openai_key') || (GH_OPENAI_KEY !== "__OPENAI_API_KEY__" ? GH_OPENAI_KEY : ""),
+            // Store selected model name
+            geminiModel: localStorage.getItem('gemini_model') || 'gemini-1.5-flash',
+            openAIModel: localStorage.getItem('openai_model') || 'gpt-3.5-turbo'
+        };
+
+        window.openAIConfigModal = function() {
+            document.getElementById('aiConfigModal').style.display = 'flex';
+            document.getElementById('aiProvider').value = aiConfig.provider;
+            updateAIHelp();
+            
+            // Populate model selection immediately if we have a key
+            const currentKey = aiConfig.provider === 'gemini' ? aiConfig.geminiKey : aiConfig.openAIKey;
+            document.getElementById('aiKeyInput').value = currentKey;
+            
+            // Show/Hide Model Selector
+            const modelGroup = document.getElementById('modelSelectGroup');
+            if (currentKey) {
+                modelGroup.style.display = 'block';
+                // Pre-fill dropdown if empty
+                const modelSelect = document.getElementById('aiModel');
+                if (modelSelect.options.length === 0) {
+                    const opt = document.createElement('option');
+                    opt.text = aiConfig.provider === 'gemini' ? aiConfig.geminiModel : aiConfig.openAIModel;
+                    opt.value = opt.text;
+                    modelSelect.add(opt);
+                }
+            } else {
+                modelGroup.style.display = 'none';
+            }
+        };
+
+        window.updateAIHelp = function() {
+            const provider = document.getElementById('aiProvider').value;
+            const helpBox = document.getElementById('aiHelpBox');
+            const modelGroup = document.getElementById('modelSelectGroup');
+            const modelSelect = document.getElementById('aiModel');
+            
+            // Clear dropdown on provider change
+            modelSelect.innerHTML = '';
+            const defaultModel = provider === 'gemini' ? 'gemini-1.5-flash' : 'gpt-3.5-turbo';
+            const opt = document.createElement('option');
+            opt.value = defaultModel; opt.text = defaultModel;
+            modelSelect.add(opt);
+
+            if (provider === 'gemini') {
+                helpBox.innerHTML = `<strong>Get a Free Google Gemini API Key:</strong><br>1. Go to <a href="https://aistudio.google.com/app/apikey" target="_blank">Google AI Studio</a>.<br>2. Click "Create API Key" (New Project).<br>3. Copy the key (starts with 'AIza').`;
+            } else {
+                helpBox.innerHTML = `<strong>Get an OpenAI API Key:</strong><br>1. Go to <a href="https://platform.openai.com/api-keys" target="_blank">OpenAI Platform</a>.<br>2. Create a new secret key.`;
+            }
+            
+            const currentStored = provider === 'gemini' ? aiConfig.geminiKey : aiConfig.openAIKey;
+            document.getElementById('aiKeyInput').value = currentStored;
+            
+            if(currentStored) modelGroup.style.display = 'block';
+            else modelGroup.style.display = 'none';
+        };
+
+        window.checkGeminiConnection = async function() {
+            const provider = document.getElementById('aiProvider').value;
+            const key = document.getElementById('aiKeyInput').value.trim();
+            const select = document.getElementById('aiModel');
+            
+            if(!key) { alert("Please enter a key first."); return; }
+            
+            select.innerHTML = '<option>Loading...</option>';
+            
+            if (provider === 'gemini') {
+                try {
+                    // Gemini List Models Endpoint
+                    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${key}`);
+                    const data = await response.json();
+                    
+                    if (data.error) throw new Error(data.error.message);
+                    
+                    select.innerHTML = '';
+                    const models = data.models.filter(m => m.supportedGenerationMethods && m.supportedGenerationMethods.includes("generateContent"));
+                    
+                    if(models.length === 0) {
+                        alert("No compatible models found for this key. Try creating a key in a NEW AI Studio project.");
+                        return;
+                    }
+
+                    models.forEach(m => {
+                        const name = m.name.replace('models/', '');
+                        const opt = document.createElement('option');
+                        opt.value = name;
+                        opt.text = name;
+                        if(name === aiConfig.geminiModel) opt.selected = true;
+                        select.add(opt);
+                    });
+                    alert(`Success! Found ${models.length} available models.`);
+                    
+                } catch(e) {
+                    console.error(e);
+                    alert("Error checking key: " + e.message);
+                    select.innerHTML = '<option value="gemini-1.5-flash">gemini-1.5-flash (Default)</option>';
+                }
+            } else {
+                // OpenAI check (simple model list)
+                alert("OpenAI Model listing requires more complex proxy. Defaulting to standard models.");
+                select.innerHTML = '';
+                ['gpt-3.5-turbo', 'gpt-4', 'gpt-4o'].forEach(m => {
+                    const opt = document.createElement('option');
+                    opt.value = m; opt.text = m;
+                    select.add(opt);
+                });
+            }
+        };
+
+        window.saveAIConfig = function() {
+            const provider = document.getElementById('aiProvider').value;
+            const key = document.getElementById('aiKeyInput').value.trim();
+            const model = document.getElementById('aiModel').value;
+
+            if (!key) { alert("Please enter an API Key."); return; }
+
+            aiConfig.provider = provider;
+            localStorage.setItem('ai_provider', provider);
+
+            if (provider === 'gemini') {
+                aiConfig.geminiKey = key;
+                aiConfig.geminiModel = model;
+                localStorage.setItem('gemini_key', key);
+                localStorage.setItem('gemini_model', model);
+            } else {
+                aiConfig.openAIKey = key;
+                aiConfig.openAIModel = model;
+                localStorage.setItem('openai_key', key);
+                localStorage.setItem('openai_model', model);
+            }
+
+            document.getElementById('aiConfigModal').style.display = 'none';
+            alert(`Saved! Using ${provider} (${model}).`);
+        };
+
+        window.generateAICard = async function(mode) {
+            const btn = document.querySelectorAll('.btn-ai')[mode === 'single' ? 0 : 1]; // select correct button
+            const frontEl = document.getElementById('inputFront');
+            const backEl = document.getElementById('inputBack');
+            
+            let textToProcess = "";
+            if (mode === 'single') {
+                textToProcess = window.getSelection().toString().trim();
+                if(!textToProcess) textToProcess = frontEl.value.trim();
+                if(!textToProcess) { alert("Please select text or type in Front box."); return; }
+            } else {
+                textToProcess = currentRawText;
+                if(!textToProcess) { alert("No file content loaded."); return; }
+            }
+
+            const activeKey = aiConfig.provider === 'gemini' ? aiConfig.geminiKey : aiConfig.openAIKey;
+            if(!activeKey || (activeKey.startsWith("__") && activeKey.endsWith("__"))) { openAIConfigModal(); return; }
+
+            // --- START LOADING UI ---
+            btn.classList.add('loading');
+            const originalBtnText = btn.innerHTML;
+            
+            // Progress Messages for long waits
+            const messages = ["Reading...", "Analyzing...", "Thinking...", "Drafting...", "Refining...", "Formatting..."];
+            let msgIdx = 0;
+            btn.innerHTML = `<span class="spinner"></span> <span>${messages[0]}</span>`;
+            
+            const progressInterval = setInterval(() => {
+                msgIdx = (msgIdx + 1) % messages.length;
+                btn.innerHTML = `<span class="spinner"></span> <span>${messages[msgIdx]}</span>`;
+            }, 2500); // Change text every 2.5s to keep user engaged
+
+            try {
+                let cardsGenerated = [];
+                // Use selected model
+                const modelId = aiConfig.provider === 'gemini' ? aiConfig.geminiModel : aiConfig.openAIModel;
+
+                const systemPrompt = mode === 'single' 
+                    ? `You are an expert Anki flashcard creator. Task: Create ONE clear and concise flashcard from the following text. Input Text: "${textToProcess}". Output: Return ONLY raw JSON with keys "front" and "back". No markdown.`
+                    : `You are an expert Anki flashcard creator. Task: Create a comprehensive set of flashcards from the text below. Input Text: "${textToProcess.substring(0, 30000)}". Output: Return ONLY a raw JSON Array of objects, where each object has "front" and "back" keys. e.g. [{"front": "Q1", "back": "A1"}, ...]. No markdown.`;
+
+                let rawResponse = "";
+
+                if (aiConfig.provider === 'gemini') {
+                    // Use dynamic model ID
+                    const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelId}:generateContent?key=${activeKey}`;
+                    const response = await fetch(url, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ contents: [{ parts: [{ text: systemPrompt }] }] })
+                    });
+                    const data = await response.json();
+                    
+                    if (data.error) throw new Error(data.error.message);
+                    
+                    const rawText = data.candidates[0].content.parts[0].text;
+                    // Clean both Markdown blocks and potential raw json
+                    const cleaned = rawText.replace(/```json/g, '').replace(/```/g, '').trim();
+                    
+                    if (mode === 'single') {
+                        const card = JSON.parse(cleaned);
+                        frontEl.value = card.front;
+                        backEl.value = card.back;
+                        frontEl.style.borderColor = '#8b5cf6'; backEl.style.borderColor = '#8b5cf6';
+                        setTimeout(() => { frontEl.style.borderColor = '#334155'; backEl.style.borderColor = '#334155'; }, 500);
+                        if(window.trackAIStats) window.trackAIStats(1);
+                    } else {
+                        // Batch
+                        cardsGenerated = JSON.parse(cleaned);
+                    }
+
+                } else {
+                    // OpenAI
+                    const url = `https://api.openai.com/v1/chat/completions`;
+                    const response = await fetch(url, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${activeKey}` },
+                        body: JSON.stringify({ model: modelId, messages: [{ role: "user", content: systemPrompt }] })
+                    });
+                    const data = await response.json();
+                    if (data.error) throw new Error(data.error.message);
+                    rawResponse = data.choices[0].message.content;
+                    
+                    const cleaned = rawResponse.replace(/```json/g, '').replace(/```/g, '').trim();
+                    if (mode === 'single') {
+                        const card = JSON.parse(cleaned);
+                        frontEl.value = card.front;
+                        backEl.value = card.back;
+                        if(window.trackAIStats) window.trackAIStats(1);
+                    } else {
+                        cardsGenerated = JSON.parse(cleaned);
+                    }
+                }
+
+                // Handle Batch Results (Common)
+                if (mode === 'batch' && Array.isArray(cardsGenerated)) {
+                    cardsGenerated.forEach(c => drafts.push(c));
+                    renderDrafts();
+                    alert(`Successfully generated ${cardsGenerated.length} cards!`);
+                    if(window.trackAIStats) window.trackAIStats(cardsGenerated.length);
+                }
+
+            } catch (err) {
+                console.error(err);
+                alert("AI Error: " + err.message);
+            } finally {
+                // --- RESET UI ---
+                clearInterval(progressInterval);
+                btn.classList.remove('loading');
+                btn.innerHTML = originalBtnText;
+            }
+        };
     </script>
 </body>
 </html>
