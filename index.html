@@ -136,15 +136,7 @@
             font-size: 0.75rem; transition: opacity 0.2s;
         }
         .btn-ai:hover { opacity: 0.9; }
-        .btn-ai.loading { opacity: 0.8; cursor: wait; pointer-events: none; }
-
-        /* Loading Spinner Animation */
-        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
-        .spinner {
-            width: 10px; height: 10px; border: 2px solid #ffffff; 
-            border-top: 2px solid transparent; border-radius: 50%;
-            animation: spin 1s linear infinite; display: inline-block;
-        }
+        .btn-ai.loading { opacity: 0.6; cursor: wait; }
 
         .btn-commit-all {
             background: var(--green); color: white; border: none; padding: 12px;
@@ -414,14 +406,15 @@
         import { getDatabase, ref, onValue, runTransaction, get } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js";
 
         // --- KEYS ---
+        // Domain restricted in Google Cloud Console. Safe to expose.
         const firebaseConfig = {
-            apiKey: "__API_KEY__",
+            apiKey: "AIzaSyAUioj0PYXuWnqN38g3oVvg-lP_r42c-fI",
             authDomain: "logseq-to-anki.firebaseapp.com",
             databaseURL: "https://logseq-to-anki-default-rtdb.firebaseio.com",
             projectId: "logseq-to-anki",
             storageBucket: "logseq-to-anki.firebasestorage.app",
-            messagingSenderId: "__MESSAGING_ID__",
-            appId: "__APP_ID__"
+            messagingSenderId: "210112636810",
+            appId: "1:210112636810:web:f832c90ef178f3c5e14a73"
         };
 
         const app = initializeApp(firebaseConfig);
@@ -755,13 +748,10 @@
         });
 
         // --- AI INTEGRATION (GEMINI + OPENAI) ---
-        const GH_GEMINI_KEY = "__GEMINI_API_KEY__";
-        const GH_OPENAI_KEY = "__OPENAI_API_KEY__";
-
         let aiConfig = {
             provider: localStorage.getItem('ai_provider') || 'gemini',
-            geminiKey: localStorage.getItem('gemini_key') || (GH_GEMINI_KEY !== "__GEMINI_API_KEY__" ? GH_GEMINI_KEY : ""),
-            openAIKey: localStorage.getItem('openai_key') || (GH_OPENAI_KEY !== "__OPENAI_API_KEY__" ? GH_OPENAI_KEY : ""),
+            geminiKey: localStorage.getItem('gemini_key') || "",
+            openAIKey: localStorage.getItem('openai_key') || "",
             // Store selected model name
             geminiModel: localStorage.getItem('gemini_model') || 'gemini-1.5-flash',
             openAIModel: localStorage.getItem('openai_model') || 'gpt-3.5-turbo'
@@ -913,7 +903,7 @@
             }
 
             const activeKey = aiConfig.provider === 'gemini' ? aiConfig.geminiKey : aiConfig.openAIKey;
-            if(!activeKey || (activeKey.startsWith("__") && activeKey.endsWith("__"))) { openAIConfigModal(); return; }
+            if(!activeKey) { openAIConfigModal(); return; }
 
             // --- START LOADING UI ---
             btn.classList.add('loading');
