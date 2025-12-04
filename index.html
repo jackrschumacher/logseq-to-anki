@@ -628,14 +628,15 @@
         }
         async function loadContent() {
             const f=await currentFileHandle.getFile(); lastModified=f.lastModified;
-            currentRawText=await f.text(); renderFile(); updateStats();
+            currentRawText=await f.text(); renderCurrentFile(); updateStats();
         }
         async function checkChanges() {
             if(!currentFileHandle || !window.getSelection().isCollapsed) return;
             const f=await currentFileHandle.getFile(); if(f.lastModified>lastModified) await loadContent();
         }
 
-        function renderFile() {
+        // FIXED: Renamed from renderFile to renderCurrentFile to match HTML handler
+        function renderCurrentFile() {
             const ed=document.getElementById('sourceEditor');
             const wrap=document.getElementById('sourceWrapper');
             const top=wrap.scrollTop;
@@ -712,7 +713,10 @@
                 totalW += (c.front + " " + c.back).split(/\s+/).length;
                 totalC += (c.front.length + c.back.length);
             });
-            let csv="";
+            
+            // FIXED: Header directive for Anki
+            let csv="#separator:Comma\n";
+            
             cards.forEach(c=>{
                 let f=`"${c.front.replace(/"/g,'""').replace(/\n/g,'<br>')}"`;
                 let b=`"${c.back.replace(/"/g,'""').replace(/\n/g,'<br>')}"`;
