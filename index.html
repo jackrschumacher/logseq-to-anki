@@ -134,9 +134,18 @@
             padding: 6px 12px; border-radius: 4px; cursor: pointer; font-weight: bold;
             display: flex; align-items: center; justify-content: center; gap: 6px;
             font-size: 0.75rem; transition: opacity 0.2s;
+            /* FIXED: Added relative positioning for progress bar */
+            position: relative; overflow: hidden;
         }
         .btn-ai:hover { opacity: 0.9; }
-        .btn-ai.loading { opacity: 0.6; cursor: wait; }
+        .btn-ai.loading { opacity: 0.8; cursor: wait; pointer-events: none; }
+
+        /* Progress Bar Style */
+        .ai-progress-bar {
+            position: absolute; bottom: 0; left: 0; height: 3px; 
+            background: #34d399; width: 0%; transition: width 0.5s ease-out;
+            box-shadow: 0 0 10px rgba(52, 211, 153, 0.7);
+        }
 
         .btn-commit-all {
             background: var(--green); color: white; border: none; padding: 12px;
@@ -942,31 +951,41 @@
             }
 
             const activeKey = aiConfig.provider === 'gemini' ? aiConfig.geminiKey : aiConfig.openAIKey;
-            if(!activeKey) { openAIConfigModal(); return; }
+            if(!activeKey || (activeKey.startsWith("__") && activeKey.endsWith("__"))) { openAIConfigModal(); return; }
 
             // --- START LOADING UI ---
             btn.classList.add('loading');
-            const originalBtnText = btn.innerHTML;
+            const originalBtnText = btn.innerHTML; // Save icon/text
             
-            // Enhanced Progress Messages
-            const messages = [
-                "Reading context...", 
-                "Identifying concepts...", 
-                "Drafting Q&A...", 
-                "Refining wording...", 
-                "Structuring JSON...", 
-                "Finalizing..."
-            ];
+            // Initial Loading State with Progress Bar
+            btn.innerHTML = `
+                <span class="spinner"></span> <span id="aiBtnText">Starting...</span>
+                <div id="aiProgressBar" class="ai-progress-bar"></div>
+            `;
+            
+            const progressBar = document.getElementById('aiProgressBar');
+            const btnText = document.getElementById('aiBtnText');
+
+            // Progress Logic
+            let progress = 5;
+            const messages = ["Reading...", "Analyzing...", "Thinking...", "Drafting...", "Refining...", "Formatting..."];
             let msgIdx = 0;
-            btn.innerHTML = `<span class="spinner"></span> <span>${messages[0]}</span>`;
             
             const progressInterval = setInterval(() => {
+                // Increment progress (logarithmic-ish slowdown so it never hits 100% until done)
+                if(progress < 90) {
+                    progress += (90 - progress) * 0.1; 
+                }
+                if(progressBar) progressBar.style.width = `${progress}%`;
+                
+                // Cycle text
                 msgIdx = (msgIdx + 1) % messages.length;
-                btn.innerHTML = `<span class="spinner"></span> <span>${messages[msgIdx]}</span>`;
-            }, 1500); // Faster updates
+                if(btnText) btnText.innerText = messages[msgIdx];
+            }, 800); 
 
             try {
                 let cardsGenerated = [];
+                // Use selected model
                 const modelId = aiConfig.provider === 'gemini' ? aiConfig.geminiModel : aiConfig.openAIModel;
 
                 const systemPrompt = mode === 'single' 
@@ -976,6 +995,7 @@
                 let rawResponse = "";
 
                 if (aiConfig.provider === 'gemini') {
+                    // Use dynamic model ID
                     const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelId}:generateContent?key=${activeKey}`;
                     const response = await fetch(url, {
                         method: 'POST',
@@ -987,6 +1007,7 @@
                     if (data.error) throw new Error(data.error.message);
                     
                     const rawText = data.candidates[0].content.parts[0].text;
+                    // Clean both Markdown blocks and potential raw json
                     const cleaned = rawText.replace(/```json/g, '').replace(/```/g, '').trim();
                     
                     if (mode === 'single') {
@@ -999,6 +1020,7 @@
                         setTimeout(() => { frontEl.style.borderColor = '#334155'; backEl.style.borderColor = '#334155'; }, 500);
                         if(window.trackAIStats) window.trackAIStats(1);
                     } else {
+                        // Batch
                         cardsGenerated = JSON.parse(cleaned);
                     }
 
@@ -1026,7 +1048,7 @@
                     }
                 }
 
-                // Handle Batch Results (Common) with Duplicate Filtering
+                // Handle Batch Results (Common)
                 if (mode === 'batch' && Array.isArray(cardsGenerated)) {
                     let addedCount = 0;
                     let skippedCount = 0;
@@ -1042,11 +1064,18 @@
                     
                     renderDrafts();
                     
+                    // Finish Progress Bar visually before alerting
+                    if(progressBar) progressBar.style.width = '100%';
+                    await new Promise(r => setTimeout(r, 200)); // tiny delay to show 100%
+
                     let msg = `Successfully generated ${addedCount} cards!`;
                     if(skippedCount > 0) msg += ` (${skippedCount} duplicates skipped)`;
                     alert(msg);
                     
                     if(window.trackAIStats) window.trackAIStats(addedCount);
+                } else if (mode === 'single') {
+                     if(progressBar) progressBar.style.width = '100%';
+                     await new Promise(r => setTimeout(r, 200));
                 }
 
             } catch (err) {
@@ -1056,7 +1085,7 @@
                 // --- RESET UI ---
                 clearInterval(progressInterval);
                 btn.classList.remove('loading');
-                btn.innerHTML = originalBtnText;
+                btn.innerHTML = originalBtnText; // Restore original button content
             }
         };
     </script>
