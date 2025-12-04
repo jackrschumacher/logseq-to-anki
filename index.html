@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Logseq Anki Dashboard</title>
+    <title>Logseq to Anki</title>
     <!-- Favicon -->
     <link rel="icon" type="image/x-icon" href="favicon.ico">
     <!-- Chart.js for the Graph -->
@@ -286,8 +286,8 @@
                             <button class="btn-ai" style="background: linear-gradient(135deg, #ec4899, #db2777);" onclick="generateAICard('batch')"><span>🚀 Batch (File)</span></button>
                         </div>
                     </div>
-                    <textarea id="inputFront" placeholder="Front (Alt+1) - Or highlight text on left + AI Single"></textarea>
-                    <textarea id="inputBack" placeholder="Back (Alt+2)"></textarea>
+                    <textarea id="inputFront" placeholder="Front (Alt+1) - Or highlight text on left + AI Single" spellcheck="true"></textarea>
+                    <textarea id="inputBack" placeholder="Back (Alt+2)" spellcheck="true"></textarea>
                     <button class="btn-stage" onclick="stageDraft()"><span>⬇ Stage</span> <span>Ctrl+Enter</span></button>
                 </div>
                 <div class="pane-header" style="background:transparent; border-top:none; border-bottom:1px solid var(--border); font-size:0.7rem;">
