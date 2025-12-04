@@ -335,7 +335,7 @@
             </div>
             <div class="config-group">
                 <label>API Key</label>
-                <input type="password" id="aiKeyInput" class="config-input" placeholder="sk-..." />
+                <input type="password" id="aiKeyInput" class="config-input" placeholder="sk-..." onchange="handleKeyChange()" />
             </div>
             
             <!-- NEW: Model Selection -->
@@ -345,9 +345,9 @@
                     <select id="aiModel" class="config-select">
                         <!-- Populated by JS -->
                     </select>
-                    <button onclick="checkGeminiConnection()" style="background:#3b82f6; color:white; border:none; border-radius:4px; padding:0 10px; font-size:0.8rem; white-space:nowrap;">Check Key</button>
+                    <!-- Keep manual check button for explicit refresh -->
+                    <button onclick="checkGeminiConnection()" style="background:#3b82f6; color:white; border:none; border-radius:4px; padding:0 10px; font-size:0.8rem; white-space:nowrap;">Refresh</button>
                 </div>
-                <div style="font-size:0.75rem; color:#64748b; margin-top:4px;">Click "Check Key" to load available models.</div>
             </div>
 
             <div id="aiHelpBox" class="help-box"></div>
@@ -656,6 +656,10 @@
             const f=document.getElementById('inputFront').value.trim();
             const b=document.getElementById('inputBack').value.trim();
             if(!f||!b) return;
+            // Prevent exact manual duplicates immediately here too
+            if (isDuplicate({front:f, back:b})) {
+               if(!confirm("This card (Front) already exists in Drafts or Queue. Add anyway?")) return;
+            }
             drafts.push({front:f,back:b});
             document.getElementById('inputFront').value=''; document.getElementById('inputBack').value='';
             document.getElementById('inputFront').focus(); renderDrafts();
@@ -748,53 +752,78 @@
         });
 
         // --- AI INTEGRATION (GEMINI + OPENAI) ---
+        const GH_GEMINI_KEY = "__GEMINI_API_KEY__";
+        const GH_OPENAI_KEY = "__OPENAI_API_KEY__";
+
         let aiConfig = {
             provider: localStorage.getItem('ai_provider') || 'gemini',
             geminiKey: localStorage.getItem('gemini_key') || "",
             openAIKey: localStorage.getItem('openai_key') || "",
             // Store selected model name
             geminiModel: localStorage.getItem('gemini_model') || 'gemini-1.5-flash',
-            openAIModel: localStorage.getItem('openai_model') || 'gpt-3.5-turbo'
+            openAIModel: localStorage.getItem('openai_model') || 'gpt-4o-mini'
         };
+
+        window.handleKeyChange = function() {
+            // If the provider is Gemini, try to auto-check connection when key changes/blurs
+            if (aiConfig.provider === 'gemini') {
+               checkGeminiConnection();
+            }
+        }
 
         window.openAIConfigModal = function() {
             document.getElementById('aiConfigModal').style.display = 'flex';
             document.getElementById('aiProvider').value = aiConfig.provider;
-            updateAIHelp();
             
-            // Populate model selection immediately if we have a key
+            // Populate model selection immediately
             const currentKey = aiConfig.provider === 'gemini' ? aiConfig.geminiKey : aiConfig.openAIKey;
             document.getElementById('aiKeyInput').value = currentKey;
             
-            // Show/Hide Model Selector
+            // Show/Hide Model Selector and Populate with defaults first
             const modelGroup = document.getElementById('modelSelectGroup');
             if (currentKey) {
                 modelGroup.style.display = 'block';
-                // Pre-fill dropdown if empty
-                const modelSelect = document.getElementById('aiModel');
-                if (modelSelect.options.length === 0) {
-                    const opt = document.createElement('option');
-                    opt.text = aiConfig.provider === 'gemini' ? aiConfig.geminiModel : aiConfig.openAIModel;
-                    opt.value = opt.text;
-                    modelSelect.add(opt);
-                }
+                populateDefaultModels(aiConfig.provider);
+                // Also trigger a check if it's gemini
+                if(aiConfig.provider === 'gemini') checkGeminiConnection(); 
             } else {
                 modelGroup.style.display = 'none';
             }
+            
+            updateAIHelp();
         };
+
+        // NEW: Helper to populate defaults so dropdown isn't empty
+        function populateDefaultModels(provider) {
+            const select = document.getElementById('aiModel');
+            // Save current selection if it exists
+            const currentSelection = select.value || (provider === 'gemini' ? aiConfig.geminiModel : aiConfig.openAIModel);
+            
+            select.innerHTML = '';
+            let defaults = [];
+            
+            if (provider === 'gemini') {
+                defaults = ['gemini-1.5-flash', 'gemini-1.5-pro', 'gemini-2.0-flash-exp', 'gemini-1.0-pro'];
+            } else {
+                defaults = ['gpt-4o', 'gpt-4o-mini', 'gpt-4-turbo', 'gpt-3.5-turbo'];
+            }
+
+            defaults.forEach(m => {
+                const opt = document.createElement('option');
+                opt.value = m; 
+                opt.text = m + (m === currentSelection ? ' (Saved)' : '');
+                if (m === currentSelection) opt.selected = true;
+                select.add(opt);
+            });
+        }
 
         window.updateAIHelp = function() {
             const provider = document.getElementById('aiProvider').value;
             const helpBox = document.getElementById('aiHelpBox');
             const modelGroup = document.getElementById('modelSelectGroup');
-            const modelSelect = document.getElementById('aiModel');
             
-            // Clear dropdown on provider change
-            modelSelect.innerHTML = '';
-            const defaultModel = provider === 'gemini' ? 'gemini-1.5-flash' : 'gpt-3.5-turbo';
-            const opt = document.createElement('option');
-            opt.value = defaultModel; opt.text = defaultModel;
-            modelSelect.add(opt);
+            // Repopulate defaults when provider changes
+            populateDefaultModels(provider);
 
             if (provider === 'gemini') {
                 helpBox.innerHTML = `<strong>Get a Free Google Gemini API Key:</strong><br>1. Go to <a href="https://aistudio.google.com/app/apikey" target="_blank">Google AI Studio</a>.<br>2. Click "Create API Key" (New Project).<br>3. Copy the key (starts with 'AIza').`;
@@ -814,9 +843,10 @@
             const key = document.getElementById('aiKeyInput').value.trim();
             const select = document.getElementById('aiModel');
             
-            if(!key) { alert("Please enter a key first."); return; }
-            
-            select.innerHTML = '<option>Loading...</option>';
+            if(!key) { 
+                // Don't alert if called automatically on empty key
+                return; 
+            }
             
             if (provider === 'gemini') {
                 try {
@@ -830,9 +860,17 @@
                     const models = data.models.filter(m => m.supportedGenerationMethods && m.supportedGenerationMethods.includes("generateContent"));
                     
                     if(models.length === 0) {
-                        alert("No compatible models found for this key. Try creating a key in a NEW AI Studio project.");
+                        alert("No compatible models found for this key. Creating a key in a NEW AI Studio project usually fixes this.");
+                        populateDefaultModels('gemini'); // Fallback
                         return;
                     }
+
+                    // Sort to put flash models first
+                    models.sort((a, b) => {
+                        if (a.name.includes('flash') && !b.name.includes('flash')) return -1;
+                        if (!a.name.includes('flash') && b.name.includes('flash')) return 1;
+                        return 0;
+                    });
 
                     models.forEach(m => {
                         const name = m.name.replace('models/', '');
@@ -842,22 +880,16 @@
                         if(name === aiConfig.geminiModel) opt.selected = true;
                         select.add(opt);
                     });
-                    alert(`Success! Found ${models.length} available models.`);
+                    // Removed success alert for auto-check to be less annoying
                     
                 } catch(e) {
                     console.error(e);
-                    alert("Error checking key: " + e.message);
-                    select.innerHTML = '<option value="gemini-1.5-flash">gemini-1.5-flash (Default)</option>';
+                    // Don't alert on auto-check error, just log it
+                    populateDefaultModels('gemini');
                 }
             } else {
                 // OpenAI check (simple model list)
-                alert("OpenAI Model listing requires more complex proxy. Defaulting to standard models.");
-                select.innerHTML = '';
-                ['gpt-3.5-turbo', 'gpt-4', 'gpt-4o'].forEach(m => {
-                    const opt = document.createElement('option');
-                    opt.value = m; opt.text = m;
-                    select.add(opt);
-                });
+                populateDefaultModels('openai');
             }
         };
 
@@ -887,6 +919,13 @@
             alert(`Saved! Using ${provider} (${model}).`);
         };
 
+        // HELPER: Duplicate Check
+        function isDuplicate(newCard) {
+            // Check Front content against existing drafts AND finalized queue
+            const isRef = (c) => c.front.trim() === newCard.front.trim();
+            return drafts.some(isRef) || cards.some(isRef);
+        }
+
         window.generateAICard = async function(mode) {
             const btn = document.querySelectorAll('.btn-ai')[mode === 'single' ? 0 : 1]; // select correct button
             const frontEl = document.getElementById('inputFront');
@@ -909,19 +948,25 @@
             btn.classList.add('loading');
             const originalBtnText = btn.innerHTML;
             
-            // Progress Messages for long waits
-            const messages = ["Reading...", "Analyzing...", "Thinking...", "Drafting...", "Refining...", "Formatting..."];
+            // Enhanced Progress Messages
+            const messages = [
+                "Reading context...", 
+                "Identifying concepts...", 
+                "Drafting Q&A...", 
+                "Refining wording...", 
+                "Structuring JSON...", 
+                "Finalizing..."
+            ];
             let msgIdx = 0;
             btn.innerHTML = `<span class="spinner"></span> <span>${messages[0]}</span>`;
             
             const progressInterval = setInterval(() => {
                 msgIdx = (msgIdx + 1) % messages.length;
                 btn.innerHTML = `<span class="spinner"></span> <span>${messages[msgIdx]}</span>`;
-            }, 2500); // Change text every 2.5s to keep user engaged
+            }, 1500); // Faster updates
 
             try {
                 let cardsGenerated = [];
-                // Use selected model
                 const modelId = aiConfig.provider === 'gemini' ? aiConfig.geminiModel : aiConfig.openAIModel;
 
                 const systemPrompt = mode === 'single' 
@@ -931,7 +976,6 @@
                 let rawResponse = "";
 
                 if (aiConfig.provider === 'gemini') {
-                    // Use dynamic model ID
                     const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelId}:generateContent?key=${activeKey}`;
                     const response = await fetch(url, {
                         method: 'POST',
@@ -943,18 +987,18 @@
                     if (data.error) throw new Error(data.error.message);
                     
                     const rawText = data.candidates[0].content.parts[0].text;
-                    // Clean both Markdown blocks and potential raw json
                     const cleaned = rawText.replace(/```json/g, '').replace(/```/g, '').trim();
                     
                     if (mode === 'single') {
                         const card = JSON.parse(cleaned);
+                        if(isDuplicate(card)) { throw new Error("Duplicate card generated (already exists)."); }
+                        
                         frontEl.value = card.front;
                         backEl.value = card.back;
                         frontEl.style.borderColor = '#8b5cf6'; backEl.style.borderColor = '#8b5cf6';
                         setTimeout(() => { frontEl.style.borderColor = '#334155'; backEl.style.borderColor = '#334155'; }, 500);
                         if(window.trackAIStats) window.trackAIStats(1);
                     } else {
-                        // Batch
                         cardsGenerated = JSON.parse(cleaned);
                     }
 
@@ -973,6 +1017,7 @@
                     const cleaned = rawResponse.replace(/```json/g, '').replace(/```/g, '').trim();
                     if (mode === 'single') {
                         const card = JSON.parse(cleaned);
+                        if(isDuplicate(card)) { throw new Error("Duplicate card generated."); }
                         frontEl.value = card.front;
                         backEl.value = card.back;
                         if(window.trackAIStats) window.trackAIStats(1);
@@ -981,12 +1026,27 @@
                     }
                 }
 
-                // Handle Batch Results (Common)
+                // Handle Batch Results (Common) with Duplicate Filtering
                 if (mode === 'batch' && Array.isArray(cardsGenerated)) {
-                    cardsGenerated.forEach(c => drafts.push(c));
+                    let addedCount = 0;
+                    let skippedCount = 0;
+                    
+                    cardsGenerated.forEach(c => {
+                        if(!isDuplicate(c)) {
+                            drafts.push(c);
+                            addedCount++;
+                        } else {
+                            skippedCount++;
+                        }
+                    });
+                    
                     renderDrafts();
-                    alert(`Successfully generated ${cardsGenerated.length} cards!`);
-                    if(window.trackAIStats) window.trackAIStats(cardsGenerated.length);
+                    
+                    let msg = `Successfully generated ${addedCount} cards!`;
+                    if(skippedCount > 0) msg += ` (${skippedCount} duplicates skipped)`;
+                    alert(msg);
+                    
+                    if(window.trackAIStats) window.trackAIStats(addedCount);
                 }
 
             } catch (err) {
