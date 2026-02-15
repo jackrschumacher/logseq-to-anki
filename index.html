@@ -3,9 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <title>Logseq to Anki</title>
-    <!-- Favicon -->
     <link rel="icon" type="image/x-icon" href="favicon.ico">
-    <!-- Chart.js for the Graph -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
         :root {
@@ -102,6 +100,19 @@
             padding: 20px; outline: none; line-height: 1.8;
             white-space: pre-wrap; font-family: 'Courier New', Courier, monospace; font-size: 14px;
         }
+        
+        /* Improved Image Preview Style */
+        #sourceEditor img {
+            max-width: 85%;        /* Restrict width for a cleaner look */
+            max-height: 500px;     /* Prevent tall images from taking over */
+            display: block;        /* Force it to be a block element */
+            margin: 20px auto;     /* AUTO margins center it horizontally */
+            border-radius: 6px;    /* Smooth corners */
+            border: 1px solid var(--border);
+            box-shadow: 0 4px 15px rgba(0,0,0,0.3); /* Nice depth shadow */
+            background-color: white; /* Helpful if transparent images have dark text */
+        }
+
         .suggestion { border-bottom: 1px dashed var(--orange); cursor: pointer; color: #fff; }
         .suggestion:hover { background: rgba(245, 158, 11, 0.2); }
         .auto-card { border-bottom: 2px dashed var(--green); cursor: pointer; color: #a7f3d0; }
@@ -134,13 +145,11 @@
             padding: 6px 12px; border-radius: 4px; cursor: pointer; font-weight: bold;
             display: flex; align-items: center; justify-content: center; gap: 6px;
             font-size: 0.75rem; transition: opacity 0.2s;
-            /* FIXED: Added relative positioning for progress bar */
             position: relative; overflow: hidden;
         }
         .btn-ai:hover { opacity: 0.9; }
         .btn-ai.loading { opacity: 0.8; cursor: wait; pointer-events: none; }
 
-        /* Progress Bar Style */
         .ai-progress-bar {
             position: absolute; bottom: 0; left: 0; height: 3px; 
             background: #34d399; width: 0%; transition: width 0.5s ease-out;
@@ -251,6 +260,9 @@
             <div id="statusBadge" class="status-badge"><div class="pulse"></div> <span id="statusText">No Graph</span></div>
         </div>
         <div style="display:flex; gap:10px;">
+            <button onclick="window.location.href='about.html'" style="background:transparent; border:1px solid var(--border); color:#cbd5e1; padding:6px 12px; border-radius:4px; font-size:0.85rem;">
+                ℹ️ About
+            </button>
             <button onclick="openAIConfigModal()" style="background:transparent; border:1px solid #8b5cf6; color:#a78bfa; padding:6px 10px; border-radius:4px; font-size:0.85rem;">
                 ✨ AI Setup
             </button>
@@ -261,20 +273,17 @@
     </div>
 
     <div class="workspace">
-        <!-- PANE 1: FILES -->
         <div class="pane">
             <div class="pane-header">Pages & Journals</div>
             <div class="search-box"><input type="text" id="fileSearch" placeholder="Filter..." onkeyup="filterFiles()"></div>
             <div class="file-list" id="fileListArea"><div style="padding:15px; color:#64748b; text-align:center;">Select folder to start.</div></div>
         </div>
 
-        <!-- PANE 2: SOURCE -->
         <div class="pane">
             <div class="pane-header"><span id="currentFileName">No File</span></div>
             <div id="sourceWrapper"><div id="sourceEditor" contenteditable="false"></div></div>
         </div>
 
-        <!-- PANE 3: WORKBENCH -->
         <div class="pane">
             <div class="pane-header">Staging</div>
             <div class="workbench-split">
@@ -301,7 +310,6 @@
             </div>
         </div>
 
-        <!-- PANE 4: EXPORT -->
         <div class="pane">
             <div class="pane-header">
                 Export Queue
@@ -314,7 +322,6 @@
         </div>
     </div>
 
-    <!-- FOOTER STATS -->
     <div class="footer-bar">
         <div class="stat-group">
             <div class="stat-item"><span class="stat-label">WORDS:</span><span class="stat-value" id="statWords">0</span></div>
@@ -328,7 +335,6 @@
         </div>
     </div>
 
-    <!-- AI CONFIG MODAL -->
     <div id="aiConfigModal" class="modal-overlay">
         <div class="modal-content modal-small">
             <div class="modal-header">
@@ -347,14 +353,11 @@
                 <input type="password" id="aiKeyInput" class="config-input" placeholder="sk-..." onchange="handleKeyChange()" />
             </div>
             
-            <!-- NEW: Model Selection -->
             <div class="config-group" id="modelSelectGroup" style="display:none;">
                 <label>Model Name</label>
                 <div style="display:flex; gap:10px;">
                     <select id="aiModel" class="config-select">
-                        <!-- Populated by JS -->
-                    </select>
-                    <!-- Keep manual check button for explicit refresh -->
+                        </select>
                     <button onclick="checkGeminiConnection()" style="background:#3b82f6; color:white; border:none; border-radius:4px; padding:0 10px; font-size:0.8rem; white-space:nowrap;">Refresh</button>
                 </div>
             </div>
@@ -366,7 +369,6 @@
         </div>
     </div>
 
-    <!-- STATS MODAL -->
     <div id="statsModal" class="modal-overlay">
         <div class="modal-content">
             <div class="modal-header">
@@ -408,14 +410,12 @@
         <button onclick="sendSelection('back')">Back</button>
     </div>
 
-    <!-- FIREBASE & CHART MODULES -->
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
         import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
         import { getDatabase, ref, onValue, runTransaction, get } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js";
 
         // --- KEYS ---
-        // Domain restricted in Google Cloud Console. Safe to expose.
         const firebaseConfig = {
             apiKey: "AIzaSyAUioj0PYXuWnqN38g3oVvg-lP_r42c-fI",
             authDomain: "logseq-to-anki.firebaseapp.com",
@@ -440,37 +440,24 @@
             return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
         }
 
-        // TRACK AI STATS (New Function)
         window.trackAIStats = function(count) {
             if(!currentUser || count <= 0) return;
             const monthKey = getCurrentMonthKey();
-            
-            // Update Global Stats (History)
             const statsRef = ref(db, `global_stats/${monthKey}`);
             runTransaction(statsRef, (data) => {
                 if (!data) return { cardCount:0, wordCount:0, charCount:0, aiCount: count };
-                return {
-                    ...data,
-                    aiCount: (data.aiCount || 0) + count
-                };
+                return { ...data, aiCount: (data.aiCount || 0) + count };
             });
-
-            // Update Global Totals
             const totalRef = ref(db, `global_totals`);
             runTransaction(totalRef, (data) => {
                 if (!data) return { cardCount:0, wordCount:0, charCount:0, aiCount: count };
-                return {
-                    ...data,
-                    aiCount: (data.aiCount || 0) + count
-                };
-            }).then(() => console.log("AI Stats Tracked"));
+                return { ...data, aiCount: (data.aiCount || 0) + count };
+            });
         };
 
-        // SAVE BATCH STATS (Standard Exports)
         window.saveBatchStats = function(cardCount, wordCount, charCount) {
             if(!currentUser || cardCount <= 0) return;
             const monthKey = getCurrentMonthKey();
-            
             const statsRef = ref(db, `global_stats/${monthKey}`);
             runTransaction(statsRef, (data) => {
                 if (!data) return { cardCount, wordCount, charCount, aiCount:0 };
@@ -481,7 +468,6 @@
                     charCount: (data.charCount || 0) + charCount
                 };
             });
-
             const totalRef = ref(db, `global_totals`);
             runTransaction(totalRef, (data) => {
                 if (!data) return { cardCount, wordCount, charCount, aiCount:0 };
@@ -491,48 +477,34 @@
                     wordCount: (data.wordCount || 0) + wordCount,
                     charCount: (data.charCount || 0) + charCount
                 };
-            }).then(() => console.log("Export Stats Saved"));
+            });
         };
 
-        // FETCH & RENDER STATS MODAL
         window.openStatsModal = async function() {
             if(!currentUser) { alert("Please wait for Firebase connection."); return; }
             document.getElementById('statsModal').style.display = 'flex';
-            
             const historyPromise = get(ref(db, `global_stats`));
             const totalsPromise = get(ref(db, `global_totals`));
-
             let historySnap, totalsSnap;
-            try { [historySnap, totalsSnap] = await Promise.all([historyPromise, totalsPromise]); } catch(e) { console.error("Read error", e); }
+            try { [historySnap, totalsSnap] = await Promise.all([historyPromise, totalsPromise]); } catch(e) { console.error(e); }
 
             let totalWords=0, totalChars=0, totalCards=0, totalAI=0;
-
             if (totalsSnap && totalsSnap.exists()) {
                 const t = totalsSnap.val();
-                totalWords = t.wordCount || 0;
-                totalChars = t.charCount || 0;
-                totalCards = t.cardCount || 0;
-                totalAI = t.aiCount || 0;
+                totalWords = t.wordCount || 0; totalChars = t.charCount || 0;
+                totalCards = t.cardCount || 0; totalAI = t.aiCount || 0;
             } 
             
             const labels = [], wordData = [], cardData = [], tableRows = [];
-
             if (historySnap && historySnap.exists()) {
                 const data = historySnap.val();
                 const months = Object.keys(data).sort();
                 let calcWords=0, calcChars=0, calcCards=0, calcAI=0;
-
                 months.forEach(m => {
                     const entry = data[m];
-                    calcWords += (entry.wordCount || 0);
-                    calcChars += (entry.charCount || 0);
-                    calcCards += (entry.cardCount || 0);
-                    calcAI += (entry.aiCount || 0);
-
-                    labels.push(m);
-                    wordData.push(entry.wordCount || 0);
-                    cardData.push(entry.cardCount || 0);
-
+                    calcWords += (entry.wordCount || 0); calcChars += (entry.charCount || 0);
+                    calcCards += (entry.cardCount || 0); calcAI += (entry.aiCount || 0);
+                    labels.push(m); wordData.push(entry.wordCount || 0); cardData.push(entry.cardCount || 0);
                     tableRows.unshift(`<tr>
                         <td>${m}</td>
                         <td style="color:#10b981">${(entry.wordCount||0).toLocaleString()}</td>
@@ -541,18 +513,15 @@
                         <td style="color:#ec4899">${(entry.aiCount||0).toLocaleString()}</td>
                     </tr>`);
                 });
-
                 if (!totalsSnap || !totalsSnap.exists()) { 
                     totalWords = calcWords; totalChars = calcChars; totalCards = calcCards; totalAI = calcAI;
                 }
             }
-
             document.getElementById('modalTotalWords').innerText = totalWords.toLocaleString();
             document.getElementById('modalTotalChars').innerText = totalChars.toLocaleString();
             document.getElementById('modalTotalCards').innerText = totalCards.toLocaleString();
             document.getElementById('modalTotalAI').innerText = totalAI.toLocaleString();
             document.getElementById('historyTableBody').innerHTML = tableRows.join('');
-
             renderChart(labels, wordData, cardData);
         };
 
@@ -581,17 +550,24 @@
         }
     </script>
 
-    <!-- MAIN APP LOGIC -->
     <script>
         let allFiles=[], currentFileHandle=null, lastModified=0, watchInterval=null, currentRawText="";
+        let assetsMap = new Map(); // Store images: filename -> handle
         let drafts=[], cards=[];
 
         async function openGraphFolder() {
             try {
                 const dirHandle = await window.showDirectoryPicker();
-                allFiles=[]; let scanned=false;
+                allFiles=[]; assetsMap.clear(); let scanned=false;
+                
+                // Scan Pages & Journals
                 try { await scanDirectory(await dirHandle.getDirectoryHandle('pages',{create:false}),'pages'); scanned=true; } catch(e){}
                 try { await scanDirectory(await dirHandle.getDirectoryHandle('journals',{create:false}),'journals'); scanned=true; } catch(e){}
+                
+                // Scan Assets (Images)
+                try { await scanAssets(await dirHandle.getDirectoryHandle('assets', {create:false})); } catch(e){ console.log("No assets folder found"); }
+                
+                // Fallback root scan
                 if(!scanned) await scanDirectory(dirHandle,'root');
                 
                 allFiles.sort((a,b)=>a.name.localeCompare(b.name));
@@ -603,6 +579,17 @@
 
         async function scanDirectory(h,f) {
             for await(const e of h.values()) if(e.kind==='file' && e.name.endsWith('.md')) allFiles.push({name:e.name,handle:e,folder:f});
+        }
+
+        async function scanAssets(h) {
+            for await(const e of h.values()) {
+                if(e.kind === 'file') {
+                    // Normalize filename (URI decode just in case)
+                    assetsMap.set(decodeURIComponent(e.name), e);
+                    assetsMap.set(e.name, e); // Store raw too
+                }
+            }
+            console.log(`Loaded ${assetsMap.size} assets`);
         }
 
         function renderFileList(list) {
@@ -635,25 +622,59 @@
             const f=await currentFileHandle.getFile(); if(f.lastModified>lastModified) await loadContent();
         }
 
-        // FIXED: Renamed from renderFile to renderCurrentFile to match HTML handler
-        function renderCurrentFile() {
+        async function renderCurrentFile() {
             const ed=document.getElementById('sourceEditor');
             const wrap=document.getElementById('sourceWrapper');
             const top=wrap.scrollTop;
             
-            if(!document.getElementById('smartScanToggle').checked) { ed.innerText=currentRawText; }
-            else {
-                const lines=currentRawText.split('\n');
-                ed.innerHTML = lines.map(l=>{
-                    let c = l.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
-                    const m = c.match(/^(\s*-\s*)?\*\*(.*?)\*\*[:?]?\s+(.*)$/);
-                    if(m && m[3].trim().length>0) return `<div class="auto-card" data-f="${escA(m[2])}" data-b="${escA(m[3])}">${c}</div>`;
-                    return c.replace(/(\^\^.*?\^\^)/g,'<span class="suggestion" data-txt="$1">$1</span>')
+            // Process text for images before rendering
+            let processedHtml = currentRawText;
+            
+            // 1. Escape HTML first
+            processedHtml = processedHtml.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+
+            // 2. Detect Images: ![alt](path)
+            // Match typical logseq patterns: ../assets/img.png, /assets/img.png, or just assets/img.png
+            const imgRegex = /!\[.*?\]\((.*?)\)/g;
+            const matches = [...processedHtml.matchAll(imgRegex)];
+            
+            // We need to do this asynchronously to load blobs
+            for (const match of matches) {
+                const fullTag = match[0];
+                const path = match[1];
+                // Extract filename
+                const filename = decodeURIComponent(path.split('/').pop());
+                
+                if (assetsMap.has(filename)) {
+                    try {
+                        const file = await assetsMap.get(filename).getFile();
+                        const url = URL.createObjectURL(file);
+                        const imgTag = `<img src="${url}" data-filename="${filename}" title="${filename}">`;
+                        processedHtml = processedHtml.replace(fullTag, imgTag);
+                    } catch(e) { console.error("Error loading image", filename, e); }
+                }
+            }
+
+            if(!document.getElementById('smartScanToggle').checked) { 
+                ed.innerHTML = processedHtml; 
+            } else {
+                const lines = processedHtml.split('\n');
+                ed.innerHTML = lines.map(l => {
+                    // Check if line is JUST an image (already converted to <img> tag)
+                    if(l.trim().startsWith('<img')) return l;
+
+                    const m = l.match(/^(\s*-\s*)?\*\*(.*?)\*\*[:?]?\s+(.*)$/);
+                    if(m && m[3].trim().length>0) return `<div class="auto-card" data-f="${escA(m[2])}" data-b="${escA(m[3])}">${l}</div>`;
+                    
+                    return l.replace(/(\^\^.*?\^\^)/g,'<span class="suggestion" data-txt="$1">$1</span>')
                             .replace(/(\*\*.*?\*\*)/g,'<span class="suggestion" data-txt="$1">$1</span>');
                 }).join('\n');
                 
+                // Re-attach listeners
                 document.querySelectorAll('.auto-card').forEach(e=>e.onclick=(ev)=>{
-                    ev.stopPropagation(); setInputs(e.getAttribute('data-f'),e.getAttribute('data-b'));
+                    ev.stopPropagation(); 
+                    // Strip HTML from data-f/b if needed, but for now simple text
+                    setInputs(e.getAttribute('data-f').replace(/&quot;/g,'"'), e.getAttribute('data-b').replace(/&quot;/g,'"'));
                 });
                 document.querySelectorAll('.suggestion').forEach(e=>e.onclick=(ev)=>{
                     ev.stopPropagation(); showPop(e);
@@ -666,9 +687,8 @@
             const f=document.getElementById('inputFront').value.trim();
             const b=document.getElementById('inputBack').value.trim();
             if(!f||!b) return;
-            // Prevent exact manual duplicates immediately here too
             if (isDuplicate({front:f, back:b})) {
-               if(!confirm("This card (Front) already exists in Drafts or Queue. Add anyway?")) return;
+               if(!confirm("This card (Front) already exists. Add anyway?")) return;
             }
             drafts.push({front:f,back:b});
             document.getElementById('inputFront').value=''; document.getElementById('inputBack').value='';
@@ -714,9 +734,7 @@
                 totalC += (c.front.length + c.back.length);
             });
             
-            // FIXED: Header directive for Anki
             let csv="#separator:Comma\n";
-            
             cards.forEach(c=>{
                 let f=`"${c.front.replace(/"/g,'""').replace(/\n/g,'<br>')}"`;
                 let b=`"${c.back.replace(/"/g,'""').replace(/\n/g,'<br>')}"`;
@@ -764,67 +782,46 @@
             if(e.altKey&&e.key==='2'){e.preventDefault();sendSelection('back');}
         });
 
-        // --- AI INTEGRATION (GEMINI + OPENAI) ---
-        const GH_GEMINI_KEY = "__GEMINI_API_KEY__";
-        const GH_OPENAI_KEY = "__OPENAI_API_KEY__";
-
+        // --- AI INTEGRATION ---
         let aiConfig = {
             provider: localStorage.getItem('ai_provider') || 'gemini',
             geminiKey: localStorage.getItem('gemini_key') || "",
             openAIKey: localStorage.getItem('openai_key') || "",
-            // Store selected model name
             geminiModel: localStorage.getItem('gemini_model') || 'gemini-1.5-flash',
             openAIModel: localStorage.getItem('openai_model') || 'gpt-4o-mini'
         };
 
         window.handleKeyChange = function() {
-            // If the provider is Gemini, try to auto-check connection when key changes/blurs
-            if (aiConfig.provider === 'gemini') {
-               checkGeminiConnection();
-            }
+            if (aiConfig.provider === 'gemini') checkGeminiConnection();
         }
 
         window.openAIConfigModal = function() {
             document.getElementById('aiConfigModal').style.display = 'flex';
             document.getElementById('aiProvider').value = aiConfig.provider;
-            
-            // Populate model selection immediately
             const currentKey = aiConfig.provider === 'gemini' ? aiConfig.geminiKey : aiConfig.openAIKey;
             document.getElementById('aiKeyInput').value = currentKey;
-            
-            // Show/Hide Model Selector and Populate with defaults first
             const modelGroup = document.getElementById('modelSelectGroup');
             if (currentKey) {
                 modelGroup.style.display = 'block';
                 populateDefaultModels(aiConfig.provider);
-                // Also trigger a check if it's gemini
                 if(aiConfig.provider === 'gemini') checkGeminiConnection(); 
             } else {
                 modelGroup.style.display = 'none';
             }
-            
             updateAIHelp();
         };
 
-        // NEW: Helper to populate defaults so dropdown isn't empty
         function populateDefaultModels(provider) {
             const select = document.getElementById('aiModel');
-            // Save current selection if it exists
             const currentSelection = select.value || (provider === 'gemini' ? aiConfig.geminiModel : aiConfig.openAIModel);
-            
             select.innerHTML = '';
-            let defaults = [];
-            
-            if (provider === 'gemini') {
-                defaults = ['gemini-1.5-flash', 'gemini-1.5-pro', 'gemini-2.0-flash-exp', 'gemini-1.0-pro'];
-            } else {
-                defaults = ['gpt-4o', 'gpt-4o-mini', 'gpt-4-turbo', 'gpt-3.5-turbo'];
-            }
+            let defaults = provider === 'gemini' 
+                ? ['gemini-1.5-flash', 'gemini-1.5-pro', 'gemini-2.0-flash-exp']
+                : ['gpt-4o', 'gpt-4o-mini', 'gpt-4-turbo'];
 
             defaults.forEach(m => {
                 const opt = document.createElement('option');
-                opt.value = m; 
-                opt.text = m + (m === currentSelection ? ' (Saved)' : '');
+                opt.value = m; opt.text = m + (m === currentSelection ? ' (Saved)' : '');
                 if (m === currentSelection) opt.selected = true;
                 select.add(opt);
             });
@@ -834,113 +831,78 @@
             const provider = document.getElementById('aiProvider').value;
             const helpBox = document.getElementById('aiHelpBox');
             const modelGroup = document.getElementById('modelSelectGroup');
-            
-            // Repopulate defaults when provider changes
             populateDefaultModels(provider);
 
             if (provider === 'gemini') {
-                helpBox.innerHTML = `<strong>Get a Free Google Gemini API Key:</strong><br>1. Go to <a href="https://aistudio.google.com/app/apikey" target="_blank">Google AI Studio</a>.<br>2. Click "Create API Key" (New Project).<br>3. Copy the key (starts with 'AIza').`;
+                helpBox.innerHTML = `<strong>Get a Free Google Gemini API Key:</strong><br>1. Go to <a href="https://aistudio.google.com/app/apikey" target="_blank">Google AI Studio</a>.<br>2. Click "Create API Key" (New Project).`;
             } else {
-                helpBox.innerHTML = `<strong>Get an OpenAI API Key:</strong><br>1. Go to <a href="https://platform.openai.com/api-keys" target="_blank">OpenAI Platform</a>.<br>2. Create a new secret key.`;
+                helpBox.innerHTML = `<strong>Get an OpenAI API Key:</strong><br>1. Go to <a href="https://platform.openai.com/api-keys" target="_blank">OpenAI Platform</a>.`;
             }
             
             const currentStored = provider === 'gemini' ? aiConfig.geminiKey : aiConfig.openAIKey;
             document.getElementById('aiKeyInput').value = currentStored;
-            
-            if(currentStored) modelGroup.style.display = 'block';
-            else modelGroup.style.display = 'none';
+            if(currentStored) modelGroup.style.display = 'block'; else modelGroup.style.display = 'none';
         };
 
         window.checkGeminiConnection = async function() {
             const provider = document.getElementById('aiProvider').value;
             const key = document.getElementById('aiKeyInput').value.trim();
             const select = document.getElementById('aiModel');
+            if(!key || provider !== 'gemini') return;
             
-            if(!key) { 
-                // Don't alert if called automatically on empty key
-                return; 
-            }
-            
-            if (provider === 'gemini') {
-                try {
-                    // Gemini List Models Endpoint
-                    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${key}`);
-                    const data = await response.json();
-                    
-                    if (data.error) throw new Error(data.error.message);
-                    
-                    select.innerHTML = '';
-                    const models = data.models.filter(m => m.supportedGenerationMethods && m.supportedGenerationMethods.includes("generateContent"));
-                    
-                    if(models.length === 0) {
-                        alert("No compatible models found for this key. Creating a key in a NEW AI Studio project usually fixes this.");
-                        populateDefaultModels('gemini'); // Fallback
-                        return;
-                    }
-
-                    // Sort to put flash models first
-                    models.sort((a, b) => {
-                        if (a.name.includes('flash') && !b.name.includes('flash')) return -1;
-                        if (!a.name.includes('flash') && b.name.includes('flash')) return 1;
-                        return 0;
-                    });
-
-                    models.forEach(m => {
-                        const name = m.name.replace('models/', '');
-                        const opt = document.createElement('option');
-                        opt.value = name;
-                        opt.text = name;
-                        if(name === aiConfig.geminiModel) opt.selected = true;
-                        select.add(opt);
-                    });
-                    // Removed success alert for auto-check to be less annoying
-                    
-                } catch(e) {
-                    console.error(e);
-                    // Don't alert on auto-check error, just log it
-                    populateDefaultModels('gemini');
-                }
-            } else {
-                // OpenAI check (simple model list)
-                populateDefaultModels('openai');
-            }
+            try {
+                const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${key}`);
+                const data = await response.json();
+                if (data.error) throw new Error(data.error.message);
+                select.innerHTML = '';
+                const models = data.models.filter(m => m.supportedGenerationMethods && m.supportedGenerationMethods.includes("generateContent"));
+                models.sort((a, b) => (a.name.includes('flash') ? -1 : 1));
+                models.forEach(m => {
+                    const name = m.name.replace('models/', '');
+                    const opt = document.createElement('option');
+                    opt.value = name; opt.text = name;
+                    if(name === aiConfig.geminiModel) opt.selected = true;
+                    select.add(opt);
+                });
+            } catch(e) { console.error(e); populateDefaultModels('gemini'); }
         };
 
         window.saveAIConfig = function() {
             const provider = document.getElementById('aiProvider').value;
             const key = document.getElementById('aiKeyInput').value.trim();
             const model = document.getElementById('aiModel').value;
-
             if (!key) { alert("Please enter an API Key."); return; }
 
             aiConfig.provider = provider;
             localStorage.setItem('ai_provider', provider);
-
             if (provider === 'gemini') {
-                aiConfig.geminiKey = key;
-                aiConfig.geminiModel = model;
-                localStorage.setItem('gemini_key', key);
-                localStorage.setItem('gemini_model', model);
+                aiConfig.geminiKey = key; aiConfig.geminiModel = model;
+                localStorage.setItem('gemini_key', key); localStorage.setItem('gemini_model', model);
             } else {
-                aiConfig.openAIKey = key;
-                aiConfig.openAIModel = model;
-                localStorage.setItem('openai_key', key);
-                localStorage.setItem('openai_model', model);
+                aiConfig.openAIKey = key; aiConfig.openAIModel = model;
+                localStorage.setItem('openai_key', key); localStorage.setItem('openai_model', model);
             }
-
             document.getElementById('aiConfigModal').style.display = 'none';
             alert(`Saved! Using ${provider} (${model}).`);
         };
 
-        // HELPER: Duplicate Check
         function isDuplicate(newCard) {
-            // Check Front content against existing drafts AND finalized queue
             const isRef = (c) => c.front.trim() === newCard.front.trim();
             return drafts.some(isRef) || cards.some(isRef);
         }
 
+        // --- IMAGE HELPERS ---
+        async function fileToGenericBase64(file) {
+            return new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onload = () => resolve(reader.result.split(',')[1]); // Remove "data:image/..." header
+                reader.onerror = error => reject(error);
+                reader.readAsDataURL(file);
+            });
+        }
+
         window.generateAICard = async function(mode) {
-            const btn = document.querySelectorAll('.btn-ai')[mode === 'single' ? 0 : 1]; // select correct button
+            const btn = document.querySelectorAll('.btn-ai')[mode === 'single' ? 0 : 1];
             const frontEl = document.getElementById('inputFront');
             const backEl = document.getElementById('inputBack');
             
@@ -954,142 +916,112 @@
                 if(!textToProcess) { alert("No file content loaded."); return; }
             }
 
-            const activeKey = aiConfig.provider === 'gemini' ? aiConfig.geminiKey : aiConfig.openAIKey;
-            if(!activeKey || (activeKey.startsWith("__") && activeKey.endsWith("__"))) { openAIConfigModal(); return; }
-
-            // --- START LOADING UI ---
-            btn.classList.add('loading');
-            const originalBtnText = btn.innerHTML; // Save icon/text
+            // --- DETECT IMAGES IN TEXT ---
+            const imgRegex = /!\[.*?\]\((.*?)\)/g;
+            const imgMatches = [...textToProcess.matchAll(imgRegex)];
+            let imagesToSend = [];
             
-            // Initial Loading State with Progress Bar
-            btn.innerHTML = `
-                <span class="spinner"></span> <span id="aiBtnText">Starting...</span>
-                <div id="aiProgressBar" class="ai-progress-bar"></div>
-            `;
-            
-            const progressBar = document.getElementById('aiProgressBar');
-            const btnText = document.getElementById('aiBtnText');
-
-            // Progress Logic
-            let progress = 5;
-            const messages = ["Reading...", "Analyzing...", "Thinking...", "Drafting...", "Refining...", "Formatting..."];
-            let msgIdx = 0;
-            
-            const progressInterval = setInterval(() => {
-                // Increment progress (logarithmic-ish slowdown so it never hits 100% until done)
-                if(progress < 90) {
-                    progress += (90 - progress) * 0.1; 
+            // Limit images to avoid payload explosion (max 5 for now)
+            for (let i = 0; i < Math.min(imgMatches.length, 5); i++) {
+                const filename = decodeURIComponent(imgMatches[i][1].split('/').pop());
+                if (assetsMap.has(filename)) {
+                    try {
+                        const file = await assetsMap.get(filename).getFile();
+                        const b64 = await fileToGenericBase64(file);
+                        imagesToSend.push({ mime: file.type || 'image/png', data: b64 });
+                    } catch(e) { console.error("Could not process image for AI", filename); }
                 }
+            }
+            // -----------------------------
+
+            const activeKey = aiConfig.provider === 'gemini' ? aiConfig.geminiKey : aiConfig.openAIKey;
+            if(!activeKey) { openAIConfigModal(); return; }
+
+            btn.classList.add('loading');
+            const originalBtnText = btn.innerHTML;
+            btn.innerHTML = `<span class="spinner"></span> <span id="aiBtnText">Processing...</span><div id="aiProgressBar" class="ai-progress-bar"></div>`;
+            const progressBar = document.getElementById('aiProgressBar');
+            
+            // Fake progress animation
+            let progress = 5;
+            const progressInterval = setInterval(() => {
+                if(progress < 90) progress += (90 - progress) * 0.1; 
                 if(progressBar) progressBar.style.width = `${progress}%`;
-                
-                // Cycle text
-                msgIdx = (msgIdx + 1) % messages.length;
-                if(btnText) btnText.innerText = messages[msgIdx];
             }, 800); 
 
             try {
-                let cardsGenerated = [];
-                // Use selected model
                 const modelId = aiConfig.provider === 'gemini' ? aiConfig.geminiModel : aiConfig.openAIModel;
-
                 const systemPrompt = mode === 'single' 
-                    ? `You are an expert Anki flashcard creator. Task: Create ONE clear and concise flashcard from the following text. Input Text: "${textToProcess}". Output: Return ONLY raw JSON with keys "front" and "back". No markdown.`
-                    : `You are an expert Anki flashcard creator. Task: Create a comprehensive set of flashcards from the text below. Input Text: "${textToProcess.substring(0, 30000)}". Output: Return ONLY a raw JSON Array of objects, where each object has "front" and "back" keys. e.g. [{"front": "Q1", "back": "A1"}, ...]. No markdown.`;
+                    ? `Create ONE Anki flashcard. JSON only {"front": "...", "back": "..."}. Input: "${textToProcess}"`
+                    : `Create flashcards JSON Array [{"front": "...", "back": "..."}, ...]. Input: "${textToProcess.substring(0, 30000)}"`;
 
                 let rawResponse = "";
 
                 if (aiConfig.provider === 'gemini') {
-                    // Use dynamic model ID
+                    // GEMINI MULTIMODAL PAYLOAD
+                    const parts = [{ text: systemPrompt }];
+                    // Add images
+                    imagesToSend.forEach(img => {
+                        parts.push({ inline_data: { mime_type: img.mime, data: img.data } });
+                    });
+
                     const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelId}:generateContent?key=${activeKey}`;
                     const response = await fetch(url, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ contents: [{ parts: [{ text: systemPrompt }] }] })
+                        body: JSON.stringify({ contents: [{ parts: parts }] })
                     });
                     const data = await response.json();
-                    
                     if (data.error) throw new Error(data.error.message);
                     
                     const rawText = data.candidates[0].content.parts[0].text;
-                    // Clean both Markdown blocks and potential raw json
-                    const cleaned = rawText.replace(/```json/g, '').replace(/```/g, '').trim();
-                    
-                    if (mode === 'single') {
-                        const card = JSON.parse(cleaned);
-                        if(isDuplicate(card)) { throw new Error("Duplicate card generated (already exists)."); }
-                        
-                        frontEl.value = card.front;
-                        backEl.value = card.back;
-                        frontEl.style.borderColor = '#8b5cf6'; backEl.style.borderColor = '#8b5cf6';
-                        setTimeout(() => { frontEl.style.borderColor = '#334155'; backEl.style.borderColor = '#334155'; }, 500);
-                        if(window.trackAIStats) window.trackAIStats(1);
-                    } else {
-                        // Batch
-                        cardsGenerated = JSON.parse(cleaned);
-                    }
+                    rawResponse = rawText.replace(/```json/g, '').replace(/```/g, '').trim();
 
                 } else {
-                    // OpenAI
+                    // OPENAI MULTIMODAL PAYLOAD
+                    const contentArr = [{ type: "text", text: systemPrompt }];
+                    // Add images
+                    imagesToSend.forEach(img => {
+                        contentArr.push({ type: "image_url", image_url: { url: `data:${img.mime};base64,${img.data}` } });
+                    });
+
                     const url = `https://api.openai.com/v1/chat/completions`;
                     const response = await fetch(url, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${activeKey}` },
-                        body: JSON.stringify({ model: modelId, messages: [{ role: "user", content: systemPrompt }] })
+                        body: JSON.stringify({ model: modelId, messages: [{ role: "user", content: contentArr }] })
                     });
                     const data = await response.json();
                     if (data.error) throw new Error(data.error.message);
-                    rawResponse = data.choices[0].message.content;
-                    
-                    const cleaned = rawResponse.replace(/```json/g, '').replace(/```/g, '').trim();
-                    if (mode === 'single') {
-                        const card = JSON.parse(cleaned);
-                        if(isDuplicate(card)) { throw new Error("Duplicate card generated."); }
-                        frontEl.value = card.front;
-                        backEl.value = card.back;
-                        if(window.trackAIStats) window.trackAIStats(1);
-                    } else {
-                        cardsGenerated = JSON.parse(cleaned);
+                    rawResponse = data.choices[0].message.content.replace(/```json/g, '').replace(/```/g, '').trim();
+                }
+
+                // Parse & Handle Results
+                if (mode === 'single') {
+                    const card = JSON.parse(rawResponse);
+                    if(isDuplicate(card)) throw new Error("Duplicate card."); 
+                    frontEl.value = card.front; backEl.value = card.back;
+                    if(window.trackAIStats) window.trackAIStats(1);
+                } else {
+                    const cardsGenerated = JSON.parse(rawResponse);
+                    let added = 0;
+                    if (Array.isArray(cardsGenerated)) {
+                        cardsGenerated.forEach(c => { if(!isDuplicate(c)) { drafts.push(c); added++; } });
+                        renderDrafts();
+                        alert(`Generated ${added} cards.`);
+                        if(window.trackAIStats) window.trackAIStats(added);
                     }
                 }
-
-                // Handle Batch Results (Common)
-                if (mode === 'batch' && Array.isArray(cardsGenerated)) {
-                    let addedCount = 0;
-                    let skippedCount = 0;
-                    
-                    cardsGenerated.forEach(c => {
-                        if(!isDuplicate(c)) {
-                            drafts.push(c);
-                            addedCount++;
-                        } else {
-                            skippedCount++;
-                        }
-                    });
-                    
-                    renderDrafts();
-                    
-                    // Finish Progress Bar visually before alerting
-                    if(progressBar) progressBar.style.width = '100%';
-                    await new Promise(r => setTimeout(r, 200)); // tiny delay to show 100%
-
-                    let msg = `Successfully generated ${addedCount} cards!`;
-                    if(skippedCount > 0) msg += ` (${skippedCount} duplicates skipped)`;
-                    alert(msg);
-                    
-                    if(window.trackAIStats) window.trackAIStats(addedCount);
-                } else if (mode === 'single') {
-                     if(progressBar) progressBar.style.width = '100%';
-                     await new Promise(r => setTimeout(r, 200));
-                }
+                if(progressBar) progressBar.style.width = '100%';
+                await new Promise(r => setTimeout(r, 200));
 
             } catch (err) {
                 console.error(err);
                 alert("AI Error: " + err.message);
             } finally {
-                // --- RESET UI ---
                 clearInterval(progressInterval);
                 btn.classList.remove('loading');
-                btn.innerHTML = originalBtnText; // Restore original button content
+                btn.innerHTML = originalBtnText;
             }
         };
     </script>
