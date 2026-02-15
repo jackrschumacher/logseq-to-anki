@@ -728,6 +728,18 @@
 
         function downloadCSV() {
             if(cards.length===0) return alert("Queue empty!");
+            
+            // Calc default name based on open file
+            let defaultName = "anki_export.csv";
+            if (currentFileHandle && currentFileHandle.name) {
+                defaultName = currentFileHandle.name.replace(/\.md$/i, '') + ".csv";
+            }
+
+            // Prompt
+            let name = prompt("Exporting CSV. Rename if you like:", defaultName);
+            if(!name) return; // User cancelled
+            if(!name.toLowerCase().endsWith(".csv")) name += ".csv";
+
             let totalW=0, totalC=0;
             cards.forEach(c => {
                 totalW += (c.front + " " + c.back).split(/\s+/).length;
@@ -741,7 +753,7 @@
                 csv+=`${f},${b}\n`;
             });
             const blob=new Blob([csv],{type:'text/csv;charset=utf-8;'});
-            const link=document.createElement("a"); link.href=URL.createObjectURL(blob); link.download="anki_export.csv"; link.click();
+            const link=document.createElement("a"); link.href=URL.createObjectURL(blob); link.download=name; link.click();
             if(window.saveBatchStats) window.saveBatchStats(cards.length, totalW, totalC);
         }
 
