@@ -7,10 +7,37 @@
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
         :root {
-            --bg: #0f172a; --surface: #1e293b; --border: #334155;
-            --text: #e2e8f0; --accent: #3b82f6; --green: #10b981;
-            --orange: #f59e0b; --red: #ef4444; --purple: #8b5cf6; --pink: #ec4899;
+            /* Default Dark Theme */
+            --bg: #0f172a; 
+            --surface: #1e293b; 
+            --border: #334155;
+            --text: #e2e8f0; 
+            --text-muted: #94a3b8;
+            --accent: #3b82f6; 
+            --green: #10b981;
+            --orange: #f59e0b; 
+            --red: #ef4444; 
+            --purple: #8b5cf6; 
+            --pink: #ec4899;
             --sidebar-width: 220px;
+            --header-bg: rgba(0,0,0,0.2);
+            --input-area-bg: #162032;
+            --scroll-thumb: #475569;
+            --hover-bg: rgba(255,255,255,0.05);
+        }
+
+        /* Light Theme Overrides */
+        [data-theme="light"] {
+            --bg: #f8fafc;        /* Slate 50 */
+            --surface: #ffffff;   /* White */
+            --border: #cbd5e1;    /* Slate 300 */
+            --text: #0f172a;      /* Slate 900 */
+            --text-muted: #64748b;/* Slate 500 */
+            --accent: #2563eb;    /* Blue 600 */
+            --header-bg: rgba(0,0,0,0.03);
+            --input-area-bg: #f1f5f9; /* Slate 100 */
+            --scroll-thumb: #cbd5e1;
+            --hover-bg: rgba(0,0,0,0.05);
         }
 
         body {
@@ -25,7 +52,7 @@
         ::-webkit-scrollbar { width: 8px; height: 8px; }
         ::-webkit-scrollbar-track { background: var(--bg); }
         ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
-        ::-webkit-scrollbar-thumb:hover { background: #475569; }
+        ::-webkit-scrollbar-thumb:hover { background: var(--scroll-thumb); }
 
         /* --- TOP BAR --- */
         .top-bar {
@@ -36,12 +63,12 @@
         .controls-left { display: flex; align-items: center; gap: 15px; }
         .toggle-switch {
             display: flex; align-items: center; gap: 8px; font-size: 0.85rem;
-            background: rgba(255,255,255,0.05); padding: 4px 10px; border-radius: 20px;
+            background: var(--hover-bg); padding: 4px 10px; border-radius: 20px;
             cursor: pointer; user-select: none; border: 1px solid var(--border);
         }
         .status-badge {
             font-size: 0.75rem; padding: 4px 8px; border-radius: 4px;
-            background: #334155; color: #94a3b8; font-weight: bold;
+            background: var(--border); color: var(--text-muted); font-weight: bold;
             display: flex; align-items: center; gap: 5px;
         }
         .status-badge.active { background: rgba(16, 185, 129, 0.2); color: var(--green); }
@@ -75,8 +102,8 @@
         }
         .pane:last-child { border-right: none; }
         .pane-header {
-            padding: 10px; background: rgba(0,0,0,0.2); border-bottom: 1px solid var(--border);
-            font-size: 0.75rem; font-weight: bold; color: #94a3b8; text-transform: uppercase;
+            padding: 10px; background: var(--header-bg); border-bottom: 1px solid var(--border);
+            font-size: 0.75rem; font-weight: bold; color: var(--text-muted); text-transform: uppercase;
             display: flex; justify-content: space-between; align-items: center; flex-shrink: 0;
         }
 
@@ -84,15 +111,15 @@
         .search-box { padding: 10px; border-bottom: 1px solid var(--border); background: var(--surface); }
         .search-box input {
             width: 100%; background: var(--bg); border: 1px solid var(--border);
-            color: white; padding: 6px; border-radius: 4px; font-size: 0.85rem;
+            color: var(--text); padding: 6px; border-radius: 4px; font-size: 0.85rem;
         }
         .file-list { flex: 1; overflow-y: auto; }
         .file-item {
             padding: 8px 15px; cursor: pointer; font-size: 0.85rem;
-            border-bottom: 1px solid rgba(255,255,255,0.03); white-space: nowrap;
-            overflow: hidden; text-overflow: ellipsis; color: #cbd5e1;
+            border-bottom: 1px solid var(--border); white-space: nowrap;
+            overflow: hidden; text-overflow: ellipsis; color: var(--text-muted);
         }
-        .file-item:hover { background: rgba(255,255,255,0.05); }
+        .file-item:hover { background: var(--hover-bg); color: var(--text); }
         .file-item.selected { background: var(--accent); color: white; }
 
         #sourceWrapper { flex: 1; overflow-y: auto; position: relative; }
@@ -103,32 +130,32 @@
         
         /* Improved Image Preview Style */
         #sourceEditor img {
-            max-width: 85%;        /* Restrict width for a cleaner look */
-            max-height: 500px;     /* Prevent tall images from taking over */
-            display: block;        /* Force it to be a block element */
-            margin: 20px auto;     /* AUTO margins center it horizontally */
-            border-radius: 6px;    /* Smooth corners */
+            max-width: 85%;        
+            max-height: 500px;     
+            display: block;        
+            margin: 20px auto;     
+            border-radius: 6px;    
             border: 1px solid var(--border);
-            box-shadow: 0 4px 15px rgba(0,0,0,0.3); /* Nice depth shadow */
-            background-color: white; /* Helpful if transparent images have dark text */
+            box-shadow: 0 4px 15px rgba(0,0,0,0.3); 
+            background-color: white; 
         }
 
-        .suggestion { border-bottom: 1px dashed var(--orange); cursor: pointer; color: #fff; }
+        .suggestion { border-bottom: 1px dashed var(--orange); cursor: pointer; color: var(--text); }
         .suggestion:hover { background: rgba(245, 158, 11, 0.2); }
-        .auto-card { border-bottom: 2px dashed var(--green); cursor: pointer; color: #a7f3d0; }
+        .auto-card { border-bottom: 2px dashed var(--green); cursor: pointer; color: var(--green); }
         .auto-card:hover { background: rgba(16, 185, 129, 0.15); }
 
         .workbench-split { display: flex; flex-direction: column; flex: 1; min-height: 0; overflow: hidden; }
 
         .input-area {
             padding: 15px; border-bottom: 1px solid var(--border);
-            display: flex; flex-direction: column; gap: 10px; background: #162032;
+            display: flex; flex-direction: column; gap: 10px; background: var(--input-area-bg);
             flex-shrink: 0; 
         }
         .draft-area { flex: 1; overflow-y: auto; padding: 10px; background: var(--bg); display: flex; flex-direction: column; gap: 8px; }
         textarea {
             width: 100%; background: var(--surface); border: 1px solid var(--border);
-            color: white; border-radius: 4px; padding: 8px; min-height: 70px;
+            color: var(--text); border-radius: 4px; padding: 8px; min-height: 70px;
             resize: vertical; font-family: inherit; box-sizing: border-box;
         }
         textarea:focus { border-color: var(--accent); outline: none; }
@@ -179,7 +206,7 @@
         }
 
         .clear-btn {
-            background: transparent; border: none; color: #64748b; 
+            background: transparent; border: none; color: var(--text-muted); 
             font-size: 1rem; padding: 4px; border-radius: 4px;
         }
         .clear-btn:hover { background: rgba(239, 68, 68, 0.1); color: var(--red); }
@@ -187,7 +214,7 @@
         /* --- FOOTER & MODALS --- */
         .footer-bar {
             height: 30px; background: var(--surface); border-top: 1px solid var(--border);
-            display: flex; align-items: center; padding: 0 15px; font-size: 0.75rem; color: #94a3b8;
+            display: flex; align-items: center; padding: 0 15px; font-size: 0.75rem; color: var(--text-muted);
             justify-content: space-between; flex-shrink: 0; user-select: none;
             position: sticky; bottom: 0; z-index: 100;
         }
@@ -204,47 +231,53 @@
             backdrop-filter: blur(5px);
         }
         .modal-content {
-            background: #0f172a; border: 1px solid var(--border); border-radius: 12px;
+            background: var(--bg); border: 1px solid var(--border); border-radius: 12px;
             width: 900px; max-width: 95%; max-height: 90vh; overflow-y: auto;
-            padding: 30px; box-shadow: 0 20px 50px rgba(0,0,0,0.5);
+            padding: 30px; box-shadow: 0 20px 50px rgba(0,0,0,0.5); color: var(--text);
         }
         .modal-small { width: 500px; } /* Smaller variant */
         
         .modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
-        .modal-title { font-size: 1.5rem; font-weight: bold; }
+        .modal-title { font-size: 1.5rem; font-weight: bold; color: var(--text); }
         
         .stat-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 20px; margin-bottom: 30px; }
-        .stat-card { background: #1e293b; border: 1px solid var(--border); border-radius: 8px; padding: 20px; text-align: center; }
+        .stat-card { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 20px; text-align: center; }
         .stat-card-num { font-size: 1.8rem; font-weight: bold; display: block; }
-        .stat-card-label { font-size: 0.8rem; color: #94a3b8; text-transform: uppercase; letter-spacing: 1px;}
+        .stat-card-label { font-size: 0.8rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 1px;}
         .c-green { color: var(--green); } .c-orange { color: var(--orange); } .c-purple { color: var(--purple); } .c-pink { color: var(--pink); }
 
-        .chart-container { background: #1e293b; border: 1px solid var(--border); border-radius: 8px; padding: 20px; margin-bottom: 30px; height: 350px; position: relative; }
+        .chart-container { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 20px; margin-bottom: 30px; height: 350px; position: relative; }
         .history-table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
-        .history-table th { text-align: left; color: #94a3b8; padding: 10px; border-bottom: 1px solid var(--border); }
-        .history-table td { padding: 15px 10px; border-bottom: 1px solid rgba(255,255,255,0.05); }
+        .history-table th { text-align: left; color: var(--text-muted); padding: 10px; border-bottom: 1px solid var(--border); }
+        .history-table td { padding: 15px 10px; border-bottom: 1px solid var(--border); color: var(--text); }
 
-        .close-btn { background: #1e293b; border: 1px solid var(--border); color: white; padding: 10px; width: 100%; border-radius: 6px; }
-        .close-btn:hover { background: #334155; }
+        .close-btn { background: var(--surface); border: 1px solid var(--border); color: var(--text); padding: 10px; width: 100%; border-radius: 6px; }
+        .close-btn:hover { background: var(--border); }
 
         /* AI Config Form */
         .config-group { margin-bottom: 15px; }
-        .config-group label { display: block; margin-bottom: 5px; color: #94a3b8; font-size: 0.9rem; }
+        .config-group label { display: block; margin-bottom: 5px; color: var(--text-muted); font-size: 0.9rem; }
         .config-select, .config-input { 
-            width: 100%; padding: 10px; background: #1e293b; border: 1px solid #334155; 
-            color: white; border-radius: 6px; box-sizing: border-box; 
+            width: 100%; padding: 10px; background: var(--surface); border: 1px solid var(--border); 
+            color: var(--text); border-radius: 6px; box-sizing: border-box; 
         }
         .help-box { 
             background: rgba(59, 130, 246, 0.1); border: 1px solid rgba(59, 130, 246, 0.3); 
-            padding: 10px; border-radius: 6px; margin-top: 10px; font-size: 0.85rem; color: #cbd5e1; line-height: 1.5;
+            padding: 10px; border-radius: 6px; margin-top: 10px; font-size: 0.85rem; color: var(--text); line-height: 1.5;
         }
-        .help-box a { color: #60a5fa; }
+        .help-box a { color: var(--accent); }
 
         /* --- POPUP --- */
-        #selectionPopup { position: fixed; background: #0f172a; border: 1px solid var(--accent); padding: 5px; display: none; gap: 5px; z-index: 1000; border-radius: 6px; }
+        #selectionPopup { position: fixed; background: var(--bg); border: 1px solid var(--accent); padding: 5px; display: none; gap: 5px; z-index: 1000; border-radius: 6px; }
         #selectionPopup button { background: var(--surface); border: 1px solid var(--border); color: var(--text); padding: 5px 10px; border-radius: 4px; cursor: pointer; }
         #selectionPopup button:hover { background: var(--accent); color: white; }
         button.primary { background: var(--accent); color: white; border: none; padding: 8px 12px; border-radius: 4px; cursor: pointer; }
+        
+        .nav-btn {
+            background: transparent; border: 1px solid var(--border); color: var(--text-muted); 
+            padding: 6px 12px; border-radius: 4px; font-size: 0.85rem;
+        }
+        .nav-btn:hover { background: var(--hover-bg); color: var(--text); }
     </style>
 </head>
 <body>
@@ -260,13 +293,16 @@
             <div id="statusBadge" class="status-badge"><div class="pulse"></div> <span id="statusText">No Graph</span></div>
         </div>
         <div style="display:flex; gap:10px;">
-            <button onclick="window.location.href='about.html'" style="background:transparent; border:1px solid var(--border); color:#cbd5e1; padding:6px 12px; border-radius:4px; font-size:0.85rem;">
+            <button onclick="toggleTheme()" class="nav-btn" title="Toggle Theme">
+                🌗 Theme
+            </button>
+            <button onclick="window.location.href='about.html'" class="nav-btn">
                 ℹ️ About
             </button>
             <button onclick="openAIConfigModal()" style="background:transparent; border:1px solid #8b5cf6; color:#a78bfa; padding:6px 10px; border-radius:4px; font-size:0.85rem;">
                 ✨ AI Setup
             </button>
-            <button onclick="openStatsModal()" style="background: transparent; border: 1px solid var(--border); color: #cbd5e1; padding: 6px 12px; border-radius: 4px; font-size: 0.85rem;">
+            <button onclick="openStatsModal()" class="nav-btn">
                 📊 View Stats
             </button>
         </div>
@@ -276,7 +312,7 @@
         <div class="pane">
             <div class="pane-header">Pages & Journals</div>
             <div class="search-box"><input type="text" id="fileSearch" placeholder="Filter..." onkeyup="filterFiles()"></div>
-            <div class="file-list" id="fileListArea"><div style="padding:15px; color:#64748b; text-align:center;">Select folder to start.</div></div>
+            <div class="file-list" id="fileListArea"><div style="padding:15px; color:var(--text-muted); text-align:center;">Select folder to start.</div></div>
         </div>
 
         <div class="pane">
@@ -289,7 +325,7 @@
             <div class="workbench-split">
                 <div class="input-area">
                     <div style="display:flex; gap:10px; align-items:center; margin-bottom:5px; justify-content: space-between;">
-                        <span style="font-size:0.75rem; color:#64748b; font-weight:bold;">AI TOOLS</span>
+                        <span style="font-size:0.75rem; color:var(--text-muted); font-weight:bold;">AI TOOLS</span>
                         <div style="display:flex; gap:5px;">
                             <button class="btn-ai" onclick="generateAICard('single')"><span>✨ Single</span></button>
                             <button class="btn-ai" style="background: linear-gradient(135deg, #ec4899, #db2777);" onclick="generateAICard('batch')"><span>🚀 Batch (File)</span></button>
@@ -339,7 +375,7 @@
         <div class="modal-content modal-small">
             <div class="modal-header">
                 <div class="modal-title">✨ AI Settings</div>
-                <button onclick="document.getElementById('aiConfigModal').style.display='none'" style="background:none; border:none; color:white; font-size:1.5rem;">✕</button>
+                <button onclick="document.getElementById('aiConfigModal').style.display='none'" style="background:none; border:none; color:var(--text); font-size:1.5rem;">✕</button>
             </div>
             <div class="config-group">
                 <label>Select Provider</label>
@@ -373,7 +409,7 @@
         <div class="modal-content">
             <div class="modal-header">
                 <div class="modal-title">Community Statistics</div>
-                <button onclick="document.getElementById('statsModal').style.display='none'" style="background:none; border:none; color:white; font-size:1.5rem;">✕</button>
+                <button onclick="document.getElementById('statsModal').style.display='none'" style="background:none; border:none; color:var(--text); font-size:1.5rem;">✕</button>
             </div>
             <div class="stat-grid">
                 <div class="stat-card">
@@ -395,7 +431,7 @@
             </div>
             <div class="chart-container"><canvas id="myChart"></canvas></div>
             <div style="margin-top: 20px;">
-                <h3 style="margin-bottom: 15px; font-size: 1rem; color: #94a3b8;">History by Month</h3>
+                <h3 style="margin-bottom: 15px; font-size: 1rem; color: var(--text-muted);">History by Month</h3>
                 <table class="history-table">
                     <thead><tr><th>Month</th><th>Words</th><th>Characters</th><th>Cards</th><th>AI Gen</th></tr></thead>
                     <tbody id="historyTableBody"></tbody>
@@ -527,6 +563,10 @@
 
         function renderChart(labels, wordData, cardData) {
             const ctx = document.getElementById('myChart').getContext('2d');
+            const isLight = document.documentElement.getAttribute('data-theme') === 'light';
+            const gridColor = isLight ? '#cbd5e1' : '#334155';
+            const tickColor = isLight ? '#64748b' : '#94a3b8';
+
             if (chartInstance) chartInstance.destroy();
             chartInstance = new Chart(ctx, {
                 type: 'bar',
@@ -539,10 +579,10 @@
                 },
                 options: {
                     responsive: true, maintainAspectRatio: false, interaction: { mode: 'index', intersect: false },
-                    plugins: { legend: { labels: { color: '#cbd5e1' } } },
+                    plugins: { legend: { labels: { color: tickColor } } },
                     scales: {
-                        x: { ticks: { color: '#64748b' }, grid: { color: '#334155' } },
-                        y: { type: 'linear', display: true, position: 'left', ticks: { color: '#10b981' }, grid: { color: '#334155' } },
+                        x: { ticks: { color: tickColor }, grid: { color: gridColor } },
+                        y: { type: 'linear', display: true, position: 'left', ticks: { color: '#10b981' }, grid: { color: gridColor } },
                         y1: { type: 'linear', display: true, position: 'right', ticks: { color: '#8b5cf6' }, grid: { drawOnChartArea: false } }
                     }
                 }
@@ -551,6 +591,26 @@
     </script>
 
     <script>
+        // --- THEME LOGIC ---
+        function toggleTheme() {
+            const html = document.documentElement;
+            if (html.getAttribute('data-theme') === 'light') {
+                html.removeAttribute('data-theme');
+                localStorage.setItem('theme', 'dark');
+            } else {
+                html.setAttribute('data-theme', 'light');
+                localStorage.setItem('theme', 'light');
+            }
+        }
+        
+        // Initialize Theme
+        (function() {
+            const savedTheme = localStorage.getItem('theme');
+            if (savedTheme === 'light') {
+                document.documentElement.setAttribute('data-theme', 'light');
+            }
+        })();
+
         let allFiles=[], currentFileHandle=null, lastModified=0, watchInterval=null, currentRawText="";
         let assetsMap = new Map(); // Store images: filename -> handle
         let drafts=[], cards=[];
@@ -594,7 +654,7 @@
 
         function renderFileList(list) {
             const el = document.getElementById('fileListArea'); el.innerHTML='';
-            if(list.length===0) return el.innerHTML='<div style="padding:15px;color:#64748b;">No .md files</div>';
+            if(list.length===0) return el.innerHTML='<div style="padding:15px;color:var(--text-muted);">No .md files</div>';
             list.forEach(f=>{
                 const d=document.createElement('div'); d.className='file-item'; d.innerText=f.name;
                 d.onclick=()=>loadFile(f);
@@ -698,7 +758,7 @@
             const el=document.getElementById('draftList'); el.innerHTML='';
             drafts.forEach((d,i)=>{
                 const div=document.createElement('div'); div.className='draft-item';
-                div.innerHTML=`<b>${esc(d.front)}</b><br><span style="color:#94a3b8">${esc(d.back)}</span>
+                div.innerHTML=`<b>${esc(d.front)}</b><br><span style="color:var(--text-muted)">${esc(d.back)}</span>
                 <div class="draft-actions"><button class="mini-btn btn-del" onclick="drafts.splice(${i},1);renderDrafts()">Discard</button>
                 <button class="mini-btn btn-push" onclick="cards.push(drafts[${i}]);drafts.splice(${i},1);renderDrafts();renderQueue()">Add ➔</button></div>`;
                 el.appendChild(div);
@@ -767,7 +827,7 @@
         function setInputs(f,b) {
             const iF=document.getElementById('inputFront'); iF.value=f;
             document.getElementById('inputBack').value=b;
-            iF.style.borderColor='#10b981'; setTimeout(()=>iF.style.borderColor='#334155',300);
+            iF.style.borderColor='#10b981'; setTimeout(()=>iF.style.borderColor='var(--border)',300);
         }
         function showPop(el) {
             const p=document.getElementById('selectionPopup'); const r=el.getBoundingClientRect();
