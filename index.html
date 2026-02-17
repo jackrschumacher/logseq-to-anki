@@ -24,6 +24,7 @@
             --input-area-bg: #162032;
             --scroll-thumb: #475569;
             --hover-bg: rgba(255,255,255,0.05);
+            --focus-glow: rgba(59, 130, 246, 0.25);
         }
 
         /* Light Theme Overrides */
@@ -38,6 +39,7 @@
             --input-area-bg: #f1f5f9; /* Slate 100 */
             --scroll-thumb: #cbd5e1;
             --hover-bg: rgba(0,0,0,0.05);
+            --focus-glow: rgba(37, 99, 235, 0.2);
         }
 
         body {
@@ -107,12 +109,47 @@
             display: flex; justify-content: space-between; align-items: center; flex-shrink: 0;
         }
 
-        /* --- COLUMNS --- */
-        .search-box { padding: 10px; border-bottom: 1px solid var(--border); background: var(--surface); }
-        .search-box input {
-            width: 100%; background: var(--bg); border: 1px solid var(--border);
-            color: var(--text); padding: 6px; border-radius: 4px; font-size: 0.85rem;
+        /* --- COLUMNS & SEARCH --- */
+        .search-box { 
+            padding: 12px; 
+            border-bottom: 1px solid var(--border); 
+            background: var(--surface); 
         }
+        .search-wrapper {
+            position: relative;
+            width: 100%;
+        }
+        .search-icon {
+            position: absolute;
+            left: 10px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: var(--text-muted);
+            pointer-events: none;
+            font-size: 0.85rem;
+            opacity: 0.8;
+        }
+        .search-box input {
+            width: 100%; 
+            background: var(--bg); 
+            border: 1px solid var(--border);
+            color: var(--text); 
+            padding: 8px 10px 8px 32px; /* Left padding space for icon */
+            border-radius: 6px; 
+            font-size: 0.85rem;
+            transition: all 0.2s ease;
+            box-sizing: border-box;
+        }
+        .search-box input:focus {
+            border-color: var(--accent);
+            box-shadow: 0 0 0 3px var(--focus-glow);
+            outline: none;
+        }
+        .search-box input::placeholder {
+            color: var(--text-muted);
+            opacity: 0.7;
+        }
+
         .file-list { flex: 1; overflow-y: auto; }
         .file-item {
             padding: 8px 15px; cursor: pointer; font-size: 0.85rem;
@@ -311,7 +348,12 @@
     <div class="workspace">
         <div class="pane">
             <div class="pane-header">Pages & Journals</div>
-            <div class="search-box"><input type="text" id="fileSearch" placeholder="Filter..." onkeyup="filterFiles()"></div>
+            <div class="search-box">
+                <div class="search-wrapper">
+                    <span class="search-icon">🔍</span>
+                    <input type="text" id="fileSearch" placeholder="Search pages..." onkeyup="filterFiles()">
+                </div>
+            </div>
             <div class="file-list" id="fileListArea"><div style="padding:15px; color:var(--text-muted); text-align:center;">Select folder to start.</div></div>
         </div>
 
