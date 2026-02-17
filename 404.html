@@ -8,8 +8,19 @@
     <style>
         :root {
             --bg: #0f172a; --surface: #1e293b; --border: #334155;
-            --text: #e2e8f0; --accent: #3b82f6; --green: #10b981;
+            --text: #e2e8f0; --text-muted: #94a3b8;
+            --accent: #3b82f6; --green: #10b981;
             --orange: #f59e0b;
+        }
+
+        /* Light Theme Overrides */
+        [data-theme="light"] {
+            --bg: #f8fafc;
+            --surface: #ffffff;
+            --border: #cbd5e1;
+            --text: #0f172a;
+            --text-muted: #64748b;
+            --accent: #2563eb;
         }
 
         body {
@@ -47,11 +58,11 @@
         h2 {
             margin-top: 10px;
             font-size: 1.5rem;
-            color: #fff;
+            color: var(--text);
         }
 
         p {
-            color: #94a3b8;
+            color: var(--text-muted);
             margin-bottom: 30px;
             line-height: 1.5;
         }
@@ -75,7 +86,7 @@
             border: none;
         }
         .btn-primary:hover {
-            background: #2563eb;
+            opacity: 0.9;
         }
 
         .btn-status {
@@ -112,5 +123,18 @@
         </a>
     </div>
 
+    <script>
+        // Initialize Theme (Auto-detect + Persistence)
+        (function() {
+            const savedTheme = localStorage.getItem('theme');
+            const systemLight = window.matchMedia('(prefers-color-scheme: light)').matches;
+            
+            if (savedTheme === 'light' || (!savedTheme && systemLight)) {
+                document.documentElement.setAttribute('data-theme', 'light');
+            } else {
+                document.documentElement.removeAttribute('data-theme');
+            }
+        })();
+    </script>
 </body>
 </html>

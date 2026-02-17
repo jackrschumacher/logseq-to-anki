@@ -293,7 +293,7 @@
             <div id="statusBadge" class="status-badge"><div class="pulse"></div> <span id="statusText">No Graph</span></div>
         </div>
         <div style="display:flex; gap:10px;">
-            <button onclick="toggleTheme()" class="nav-btn" title="Toggle Theme">
+            <button onclick="toggleTheme()" class="nav-btn" title="Toggle Theme" id="themeBtn">
                 🌗 Theme
             </button>
             <button onclick="window.location.href='about.html'" class="nav-btn">
@@ -594,6 +594,7 @@
         // --- THEME LOGIC ---
         function toggleTheme() {
             const html = document.documentElement;
+            // If currently explicitly light, switch to manual dark
             if (html.getAttribute('data-theme') === 'light') {
                 html.removeAttribute('data-theme');
                 localStorage.setItem('theme', 'dark');
@@ -603,12 +604,30 @@
             }
         }
         
-        // Initialize Theme
+        // Initialize Theme (Auto-detect + Persistence)
         (function() {
             const savedTheme = localStorage.getItem('theme');
-            if (savedTheme === 'light') {
+            const systemLight = window.matchMedia('(prefers-color-scheme: light)').matches;
+            
+            // Apply light theme if:
+            // 1. Saved explicitly as 'light' OR
+            // 2. No saved preference AND system is 'light'
+            if (savedTheme === 'light' || (!savedTheme && systemLight)) {
                 document.documentElement.setAttribute('data-theme', 'light');
+            } else {
+                document.documentElement.removeAttribute('data-theme'); // Dark by default
             }
+
+            // Listen for system changes if no override is set
+            window.matchMedia('(prefers-color-scheme: light)').addEventListener('change', e => {
+                if (!localStorage.getItem('theme')) {
+                    if (e.matches) {
+                        document.documentElement.setAttribute('data-theme', 'light');
+                    } else {
+                        document.documentElement.removeAttribute('data-theme');
+                    }
+                }
+            });
         })();
 
         let allFiles=[], currentFileHandle=null, lastModified=0, watchInterval=null, currentRawText="";
