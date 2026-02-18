@@ -304,6 +304,17 @@
         }
         .help-box a { color: var(--accent); }
 
+        /* About Modal Specifics */
+        .about-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 20px; margin-bottom: 30px; }
+        .about-card {
+            background: var(--surface); border: 1px solid var(--border);
+            padding: 20px; border-radius: 12px; transition: transform 0.2s;
+        }
+        .about-card:hover { transform: translateY(-3px); border-color: var(--accent); }
+        .about-icon { font-size: 2rem; margin-bottom: 10px; display: block; }
+        .about-h3 { margin: 0 0 10px 0; color: var(--text); font-size: 1.1rem; font-weight: bold; }
+        .about-p { margin: 0; color: var(--text-muted); line-height: 1.5; font-size: 0.9rem; }
+
         /* --- POPUP --- */
         #selectionPopup { position: fixed; background: var(--bg); border: 1px solid var(--accent); padding: 5px; display: none; gap: 5px; z-index: 1000; border-radius: 6px; }
         #selectionPopup button { background: var(--surface); border: 1px solid var(--border); color: var(--text); padding: 5px 10px; border-radius: 4px; cursor: pointer; }
@@ -333,7 +344,7 @@
             <button onclick="toggleTheme()" class="nav-btn" title="Toggle Theme" id="themeBtn">
                 🌗 Theme
             </button>
-            <button onclick="window.location.href='about.html'" class="nav-btn">
+            <button onclick="document.getElementById('aboutModal').style.display='flex'" class="nav-btn">
                 ℹ️ About
             </button>
             <button onclick="openAIConfigModal()" style="background:transparent; border:1px solid #8b5cf6; color:#a78bfa; padding:6px 10px; border-radius:4px; font-size:0.85rem;">
@@ -480,6 +491,50 @@
                 </table>
             </div>
             <button class="close-btn" onclick="document.getElementById('statsModal').style.display='none'">Close</button>
+        </div>
+    </div>
+
+    <div id="aboutModal" class="modal-overlay">
+        <div class="modal-content">
+            <div class="modal-header">
+                <div class="modal-title">About Logseq to Anki</div>
+                <button onclick="document.getElementById('aboutModal').style.display='none'" style="background:none; border:none; color:var(--text); font-size:1.5rem; cursor:pointer;">✕</button>
+            </div>
+            
+            <div style="text-align:center; margin-bottom:40px;">
+                <p style="font-size:1.1rem; color:var(--text-muted); line-height:1.6;">
+                    A privacy-first tool designed to bridge the gap between your <br>
+                    knowledge base and long-term memory.
+                </p>
+            </div>
+
+            <div class="about-grid">
+                <div class="about-card">
+                    <span class="about-icon">🔒</span>
+                    <h3 class="about-h3">Local & Secure</h3>
+                    <p class="about-p">Built on the File System Access API. Your Logseq graph stays in your browser. No personal notes are ever sent to a server (unless you explicitly send them to AI).</p>
+                </div>
+                <div class="about-card">
+                    <span class="about-icon">🧠</span>
+                    <h3 class="about-h3">Multimodal AI</h3>
+                    <p class="about-p">Integrates with Google Gemini and OpenAI. The AI can read your text and "see" your screenshots to generate high-quality flashcards automatically.</p>
+                </div>
+                <div class="about-card">
+                    <span class="about-icon">⚡</span>
+                    <h3 class="about-h3">Smart Workflow</h3>
+                    <p class="about-p">Features an instant markdown preview, duplicate detection, and a staging area to review cards before exporting them to Anki CSV.</p>
+                </div>
+                <div class="about-card">
+                    <span class="about-icon">📂</span>
+                    <h3 class="about-h3">Graph Native</h3>
+                    <p class="about-p">Reads your Logseq folder structure directly. Simply point it to your graph and start searching your pages and journals immediately.</p>
+                </div>
+            </div>
+
+            <div style="text-align:center; border-top:1px solid var(--border); padding-top:30px;">
+                <a href="https://github.com/jackrschumacher/logseq-to-anki/issues" target="_blank" class="nav-btn" style="display:inline-block; padding:10px 20px; border:1px solid var(--border); border-radius:6px; text-decoration:none; color:var(--text);">Report Issue on GitHub</a>
+                <div class="version" style="margin-top:20px; color:var(--text-muted); font-size:0.8rem;">Code generated using generative AI</div>
+            </div>
         </div>
     </div>
 
