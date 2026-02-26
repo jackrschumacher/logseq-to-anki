@@ -689,529 +689,529 @@
 
     <script>
         // --- THEME LOGIC ---
-        function toggleTheme() {
-            const html = document.documentElement;
-            // If currently explicitly light, switch to manual dark
-            if (html.getAttribute('data-theme') === 'light') {
-                html.removeAttribute('data-theme');
-                localStorage.setItem('theme', 'dark');
-            } else {
-                html.setAttribute('data-theme', 'light');
-                localStorage.setItem('theme', 'light');
+    function toggleTheme() {
+        const html = document.documentElement;
+        // If currently explicitly light, switch to manual dark
+        if (html.getAttribute('data-theme') === 'light') {
+            html.removeAttribute('data-theme');
+            localStorage.setItem('theme', 'dark');
+        } else {
+            html.setAttribute('data-theme', 'light');
+            localStorage.setItem('theme', 'light');
+        }
+    }
+    
+    // Initialize Theme (Auto-detect + Persistence)
+    (function() {
+        const savedTheme = localStorage.getItem('theme');
+        const systemLight = window.matchMedia('(prefers-color-scheme: light)').matches;
+        
+        // Apply light theme if:
+        // 1. Saved explicitly as 'light' OR
+        // 2. No saved preference AND system is 'light'
+        if (savedTheme === 'light' || (!savedTheme && systemLight)) {
+            document.documentElement.setAttribute('data-theme', 'light');
+        } else {
+            document.documentElement.removeAttribute('data-theme'); // Dark by default
+        }
+
+        // Listen for system changes if no override is set
+        window.matchMedia('(prefers-color-scheme: light)').addEventListener('change', e => {
+            if (!localStorage.getItem('theme')) {
+                if (e.matches) {
+                    document.documentElement.setAttribute('data-theme', 'light');
+                } else {
+                    document.documentElement.removeAttribute('data-theme');
+                }
             }
+        });
+    })();
+
+    let allFiles=[], currentFileHandle=null, lastModified=0, watchInterval=null, currentRawText="";
+    let assetsMap = new Map(); // Store images: filename -> handle
+    let drafts=[], cards=[];
+
+    async function openGraphFolder() {
+        try {
+            const dirHandle = await window.showDirectoryPicker();
+            allFiles=[]; assetsMap.clear(); let scanned=false;
+            
+            // Scan Pages & Journals
+            try { await scanDirectory(await dirHandle.getDirectoryHandle('pages',{create:false}),'pages'); scanned=true; } catch(e){}
+            try { await scanDirectory(await dirHandle.getDirectoryHandle('journals',{create:false}),'journals'); scanned=true; } catch(e){}
+            
+            // Scan Assets (Images)
+            try { await scanAssets(await dirHandle.getDirectoryHandle('assets', {create:false})); } catch(e){ console.log("No assets folder found"); }
+            
+            // Fallback root scan
+            if(!scanned) await scanDirectory(dirHandle,'root');
+            
+            allFiles.sort((a,b)=>a.name.localeCompare(b.name));
+            renderFileList(allFiles);
+            document.getElementById('statusBadge').classList.add('active');
+            document.getElementById('statusText').innerText = "Graph Loaded";
+        } catch(err) { console.error(err); alert("Browser requires permissions."); }
+    }
+
+    async function scanDirectory(h,f) {
+        for await(const e of h.values()) if(e.kind==='file' && e.name.endsWith('.md')) allFiles.push({name:e.name,handle:e,folder:f});
+    }
+
+    async function scanAssets(h) {
+        for await(const e of h.values()) {
+            if(e.kind === 'file') {
+                // Normalize filename (URI decode just in case)
+                assetsMap.set(decodeURIComponent(e.name), e);
+                assetsMap.set(e.name, e); // Store raw too
+            }
+        }
+        console.log(`Loaded ${assetsMap.size} assets`);
+    }
+
+    function renderFileList(list) {
+        const el = document.getElementById('fileListArea'); el.innerHTML='';
+        if(list.length===0) return el.innerHTML='<div style="padding:15px;color:var(--text-muted);">No .md files</div>';
+        list.forEach(f=>{
+            const d=document.createElement('div'); d.className='file-item'; d.innerText=f.name;
+            d.onclick=()=>loadFile(f);
+            if(currentFileHandle && currentFileHandle.name===f.name) d.classList.add('selected');
+            el.appendChild(d);
+        });
+    }
+    function filterFiles() {
+        const q=document.getElementById('fileSearch').value.toLowerCase();
+        renderFileList(allFiles.filter(f=>f.name.toLowerCase().includes(q)));
+    }
+
+    async function loadFile(f) {
+        currentFileHandle=f.handle; document.getElementById('currentFileName').innerText=f.name;
+        filterFiles(); await loadContent();
+        if(watchInterval) clearInterval(watchInterval);
+        watchInterval=setInterval(checkChanges,1000);
+    }
+    async function loadContent() {
+        const f=await currentFileHandle.getFile(); lastModified=f.lastModified;
+        currentRawText=await f.text(); renderCurrentFile(); updateStats();
+    }
+    async function checkChanges() {
+        if(!currentFileHandle || !window.getSelection().isCollapsed) return;
+        const f=await currentFileHandle.getFile(); if(f.lastModified>lastModified) await loadContent();
+    }
+
+    async function renderCurrentFile() {
+        const ed=document.getElementById('sourceEditor');
+        const wrap=document.getElementById('sourceWrapper');
+        const top=wrap.scrollTop;
+        
+        // Process text for images before rendering
+        let processedHtml = currentRawText;
+        
+        // 1. Escape HTML first
+        processedHtml = processedHtml.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+
+        // 2. Detect Images: ![alt](path)
+        // Match typical logseq patterns: ../assets/img.png, /assets/img.png, or just assets/img.png
+        const imgRegex = /!\[.*?\]\((.*?)\)/g;
+        const matches = [...processedHtml.matchAll(imgRegex)];
+        
+        // We need to do this asynchronously to load blobs
+        for (const match of matches) {
+            const fullTag = match[0];
+            const path = match[1];
+            // Extract filename
+            const filename = decodeURIComponent(path.split('/').pop());
+            
+            if (assetsMap.has(filename)) {
+                try {
+                    const file = await assetsMap.get(filename).getFile();
+                    const url = URL.createObjectURL(file);
+                    const imgTag = `<img src="${url}" data-filename="${filename}" title="${filename}">`;
+                    processedHtml = processedHtml.replace(fullTag, imgTag);
+                } catch(e) { console.error("Error loading image", filename, e); }
+            }
+        }
+
+        if(!document.getElementById('smartScanToggle').checked) { 
+            ed.innerHTML = processedHtml; 
+        } else {
+            const lines = processedHtml.split('\n');
+            ed.innerHTML = lines.map(l => {
+                // Check if line is JUST an image (already converted to <img> tag)
+                if(l.trim().startsWith('<img')) return l;
+
+                const m = l.match(/^(\s*-\s*)?\*\*(.*?)\*\*[:?]?\s+(.*)$/);
+                if(m && m[3].trim().length>0) return `<div class="auto-card" data-f="${escA(m[2])}" data-b="${escA(m[3])}">${l}</div>`;
+                
+                return l.replace(/(\^\^.*?\^\^)/g,'<span class="suggestion" data-txt="$1">$1</span>')
+                        .replace(/(\*\*.*?\*\*)/g,'<span class="suggestion" data-txt="$1">$1</span>');
+            }).join('\n');
+            
+            // Re-attach listeners
+            document.querySelectorAll('.auto-card').forEach(e=>e.onclick=(ev)=>{
+                ev.stopPropagation(); 
+                // Strip HTML from data-f/b if needed, but for now simple text
+                setInputs(e.getAttribute('data-f').replace(/&quot;/g,'"'), e.getAttribute('data-b').replace(/&quot;/g,'"'));
+            });
+            document.querySelectorAll('.suggestion').forEach(e=>e.onclick=(ev)=>{
+                ev.stopPropagation(); showPop(e);
+            });
+        }
+        wrap.scrollTop=top;
+    }
+
+    function stageDraft() {
+        const f=document.getElementById('inputFront').value.trim();
+        const b=document.getElementById('inputBack').value.trim();
+        if(!f||!b) return;
+        if (isDuplicate({front:f, back:b})) {
+           if(!confirm("This card (Front) already exists. Add anyway?")) return;
+        }
+        drafts.push({front:f,back:b});
+        document.getElementById('inputFront').value=''; document.getElementById('inputBack').value='';
+        document.getElementById('inputFront').focus(); renderDrafts();
+    }
+    function renderDrafts() {
+        const el=document.getElementById('draftList'); el.innerHTML='';
+        drafts.forEach((d,i)=>{
+            const div=document.createElement('div'); div.className='draft-item';
+            div.innerHTML=`<b>${esc(d.front)}</b><br><span style="color:var(--text-muted)">${esc(d.back)}</span>
+            <div class="draft-actions"><button class="mini-btn btn-del" onclick="drafts.splice(${i},1);renderDrafts()">Discard</button>
+            <button class="mini-btn btn-push" onclick="cards.push(drafts[${i}]);drafts.splice(${i},1);renderDrafts();renderQueue()">Add ➔</button></div>`;
+            el.appendChild(div);
+        });
+        el.scrollTop=el.scrollHeight; updateStats();
+    }
+    function commitAllDrafts() { cards.push(...drafts); drafts=[]; renderDrafts(); renderQueue(); }
+    function renderQueue() {
+        const el=document.getElementById('finalList'); el.innerHTML='';
+        cards.forEach((c,i)=>{
+            const div=document.createElement('div'); div.className='saved-card';
+            div.innerHTML=`<b>${esc(c.front)}</b><br>${esc(c.back)}
+            <button onclick="cards.splice(${i},1);renderQueue()" style="position:absolute;top:5px;right:5px;border:none;background:none;color:#ef4444;cursor:pointer;">✕</button>`;
+            el.appendChild(div);
+        });
+        el.scrollTop=el.scrollHeight; updateStats();
+    }
+
+    window.clearDrafts = function() {
+        if(drafts.length === 0) return;
+        if(confirm("Clear all pending drafts?")) { drafts = []; renderDrafts(); }
+    }
+    window.clearQueue = function() {
+        if(cards.length === 0) return;
+        if(confirm("Clear export queue?")) { cards = []; renderQueue(); }
+    }
+
+    function downloadCSV() {
+        if(cards.length===0) return alert("Queue empty!");
+        
+        // Calc default name based on open file
+        let defaultName = "anki_export.csv";
+        if (currentFileHandle && currentFileHandle.name) {
+            defaultName = currentFileHandle.name.replace(/\.md$/i, '') + ".csv";
+        }
+
+        // Prompt
+        let name = prompt("Exporting CSV. Rename if you like:", defaultName);
+        if(!name) return; // User cancelled
+        if(!name.toLowerCase().endsWith(".csv")) name += ".csv";
+
+        let totalW=0, totalC=0;
+        cards.forEach(c => {
+            totalW += (c.front + " " + c.back).split(/\s+/).length;
+            totalC += (c.front.length + c.back.length);
+        });
+        
+        let csv="#separator:Comma\n";
+        cards.forEach(c=>{
+            let f=`"${c.front.replace(/"/g,'""').replace(/\n/g,'<br>')}"`;
+            let b=`"${c.back.replace(/"/g,'""').replace(/\n/g,'<br>')}"`;
+            csv+=`${f},${b}\n`;
+        });
+        const blob=new Blob([csv],{type:'text/csv;charset=utf-8;'});
+        const link=document.createElement("a"); link.href=URL.createObjectURL(blob); link.download=name; link.click();
+        if(window.saveBatchStats) window.saveBatchStats(cards.length, totalW, totalC);
+    }
+
+    function updateStats() {
+        const t=currentRawText||"";
+        document.getElementById('statWords').innerText=t.trim()===""?0:t.trim().split(/\s+/).length.toLocaleString();
+        document.getElementById('statChars').innerText=t.length.toLocaleString();
+        document.getElementById('statDrafts').innerText=drafts.length;
+        document.getElementById('statTotal').innerText=cards.length;
+    }
+    function setInputs(f,b) {
+        const iF=document.getElementById('inputFront'); iF.value=f;
+        document.getElementById('inputBack').value=b;
+        iF.style.borderColor='#10b981'; setTimeout(()=>iF.style.borderColor='var(--border)',300);
+    }
+    function showPop(el) {
+        const p=document.getElementById('selectionPopup'); const r=el.getBoundingClientRect();
+        p.style.display='flex'; p.style.top=(r.top-40)+'px'; p.style.left=r.left+'px';
+        const range=document.createRange(); range.selectNodeContents(el);
+        window.getSelection().removeAllRanges(); window.getSelection().addRange(range);
+    }
+    function sendSelection(t) {
+        const txt=window.getSelection().toString().trim().replace(/^\*\*|\*\*$/g,'').replace(/^\^\^|\^\^$/g,'');
+        document.getElementById(t==='front'?'inputFront':'inputBack').value=txt;
+        document.getElementById('selectionPopup').style.display='none';
+    }
+    function esc(t){return t.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");}
+    function escA(t){return t.replace(/"/g,"&quot;");}
+    
+    document.addEventListener('mouseup',e=>{
+        const s=window.getSelection();
+        if(s.isCollapsed||!document.getElementById('sourceEditor').contains(s.anchorNode)) document.getElementById('selectionPopup').style.display='none';
+        else showPop(s.getRangeAt(0));
+    });
+    document.addEventListener('keydown',e=>{
+        if(e.ctrlKey&&e.key==='Enter'){e.preventDefault();stageDraft();}
+        if(e.altKey&&e.key==='1'){e.preventDefault();sendSelection('front');}
+        if(e.altKey&&e.key==='2'){e.preventDefault();sendSelection('back');}
+    });
+
+    // --- AI INTEGRATION ---
+    let aiConfig = {
+        provider: localStorage.getItem('ai_provider') || 'gemini',
+        geminiKey: localStorage.getItem('gemini_key') || "",
+        openAIKey: localStorage.getItem('openai_key') || "",
+        geminiModel: localStorage.getItem('gemini_model') || 'gemini-1.5-flash',
+        openAIModel: localStorage.getItem('openai_model') || 'gpt-4o-mini'
+    };
+
+    window.handleKeyChange = function() {
+        if (aiConfig.provider === 'gemini') checkGeminiConnection();
+    }
+
+    window.openAIConfigModal = function() {
+        document.getElementById('aiConfigModal').style.display = 'flex';
+        document.getElementById('aiProvider').value = aiConfig.provider;
+        const currentKey = aiConfig.provider === 'gemini' ? aiConfig.geminiKey : aiConfig.openAIKey;
+        document.getElementById('aiKeyInput').value = currentKey;
+        const modelGroup = document.getElementById('modelSelectGroup');
+        if (currentKey) {
+            modelGroup.style.display = 'block';
+            populateDefaultModels(aiConfig.provider);
+            if(aiConfig.provider === 'gemini') checkGeminiConnection(); 
+        } else {
+            modelGroup.style.display = 'none';
+        }
+        updateAIHelp();
+    };
+
+    function populateDefaultModels(provider) {
+        const select = document.getElementById('aiModel');
+        const currentSelection = select.value || (provider === 'gemini' ? aiConfig.geminiModel : aiConfig.openAIModel);
+        select.innerHTML = '';
+        let defaults = provider === 'gemini' 
+            ? ['gemini-1.5-flash', 'gemini-1.5-pro', 'gemini-2.0-flash-exp']
+            : ['gpt-4o', 'gpt-4o-mini', 'gpt-4-turbo'];
+
+        defaults.forEach(m => {
+            const opt = document.createElement('option');
+            opt.value = m; opt.text = m + (m === currentSelection ? ' (Saved)' : '');
+            if (m === currentSelection) opt.selected = true;
+            select.add(opt);
+        });
+    }
+
+    window.updateAIHelp = function() {
+        const provider = document.getElementById('aiProvider').value;
+        const helpBox = document.getElementById('aiHelpBox');
+        const modelGroup = document.getElementById('modelSelectGroup');
+        populateDefaultModels(provider);
+
+        if (provider === 'gemini') {
+            helpBox.innerHTML = `<strong>Get a Free Google Gemini API Key:</strong><br>1. Go to <a href="https://aistudio.google.com/app/apikey" target="_blank">Google AI Studio</a>.<br>2. Click "Create API Key" (New Project).`;
+        } else {
+            helpBox.innerHTML = `<strong>Get an OpenAI API Key:</strong><br>1. Go to <a href="https://platform.openai.com/api-keys" target="_blank">OpenAI Platform</a>.`;
         }
         
-        // Initialize Theme (Auto-detect + Persistence)
-        (function() {
-            const savedTheme = localStorage.getItem('theme');
-            const systemLight = window.matchMedia('(prefers-color-scheme: light)').matches;
-            
-            // Apply light theme if:
-            // 1. Saved explicitly as 'light' OR
-            // 2. No saved preference AND system is 'light'
-            if (savedTheme === 'light' || (!savedTheme && systemLight)) {
-                document.documentElement.setAttribute('data-theme', 'light');
-            } else {
-                document.documentElement.removeAttribute('data-theme'); // Dark by default
-            }
+        const currentStored = provider === 'gemini' ? aiConfig.geminiKey : aiConfig.openAIKey;
+        document.getElementById('aiKeyInput').value = currentStored;
+        if(currentStored) modelGroup.style.display = 'block'; else modelGroup.style.display = 'none';
+    };
 
-            // Listen for system changes if no override is set
-            window.matchMedia('(prefers-color-scheme: light)').addEventListener('change', e => {
-                if (!localStorage.getItem('theme')) {
-                    if (e.matches) {
-                        document.documentElement.setAttribute('data-theme', 'light');
-                    } else {
-                        document.documentElement.removeAttribute('data-theme');
-                    }
-                }
-            });
-        })();
-
-        let allFiles=[], currentFileHandle=null, lastModified=0, watchInterval=null, currentRawText="";
-        let assetsMap = new Map(); // Store images: filename -> handle
-        let drafts=[], cards=[];
-
-        async function openGraphFolder() {
-            try {
-                const dirHandle = await window.showDirectoryPicker();
-                allFiles=[]; assetsMap.clear(); let scanned=false;
-                
-                // Scan Pages & Journals
-                try { await scanDirectory(await dirHandle.getDirectoryHandle('pages',{create:false}),'pages'); scanned=true; } catch(e){}
-                try { await scanDirectory(await dirHandle.getDirectoryHandle('journals',{create:false}),'journals'); scanned=true; } catch(e){}
-                
-                // Scan Assets (Images)
-                try { await scanAssets(await dirHandle.getDirectoryHandle('assets', {create:false})); } catch(e){ console.log("No assets folder found"); }
-                
-                // Fallback root scan
-                if(!scanned) await scanDirectory(dirHandle,'root');
-                
-                allFiles.sort((a,b)=>a.name.localeCompare(b.name));
-                renderFileList(allFiles);
-                document.getElementById('statusBadge').classList.add('active');
-                document.getElementById('statusText').innerText = "Graph Loaded";
-            } catch(err) { console.error(err); alert("Browser requires permissions."); }
-        }
-
-        async function scanDirectory(h,f) {
-            for await(const e of h.values()) if(e.kind==='file' && e.name.endsWith('.md')) allFiles.push({name:e.name,handle:e,folder:f});
-        }
-
-        async function scanAssets(h) {
-            for await(const e of h.values()) {
-                if(e.kind === 'file') {
-                    // Normalize filename (URI decode just in case)
-                    assetsMap.set(decodeURIComponent(e.name), e);
-                    assetsMap.set(e.name, e); // Store raw too
-                }
-            }
-            console.log(`Loaded ${assetsMap.size} assets`);
-        }
-
-        function renderFileList(list) {
-            const el = document.getElementById('fileListArea'); el.innerHTML='';
-            if(list.length===0) return el.innerHTML='<div style="padding:15px;color:var(--text-muted);">No .md files</div>';
-            list.forEach(f=>{
-                const d=document.createElement('div'); d.className='file-item'; d.innerText=f.name;
-                d.onclick=()=>loadFile(f);
-                if(currentFileHandle && currentFileHandle.name===f.name) d.classList.add('selected');
-                el.appendChild(d);
-            });
-        }
-        function filterFiles() {
-            const q=document.getElementById('fileSearch').value.toLowerCase();
-            renderFileList(allFiles.filter(f=>f.name.toLowerCase().includes(q)));
-        }
-
-        async function loadFile(f) {
-            currentFileHandle=f.handle; document.getElementById('currentFileName').innerText=f.name;
-            filterFiles(); await loadContent();
-            if(watchInterval) clearInterval(watchInterval);
-            watchInterval=setInterval(checkChanges,1000);
-        }
-        async function loadContent() {
-            const f=await currentFileHandle.getFile(); lastModified=f.lastModified;
-            currentRawText=await f.text(); renderCurrentFile(); updateStats();
-        }
-        async function checkChanges() {
-            if(!currentFileHandle || !window.getSelection().isCollapsed) return;
-            const f=await currentFileHandle.getFile(); if(f.lastModified>lastModified) await loadContent();
-        }
-
-        async function renderCurrentFile() {
-            const ed=document.getElementById('sourceEditor');
-            const wrap=document.getElementById('sourceWrapper');
-            const top=wrap.scrollTop;
-            
-            // Process text for images before rendering
-            let processedHtml = currentRawText;
-            
-            // 1. Escape HTML first
-            processedHtml = processedHtml.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
-
-            // 2. Detect Images: ![alt](path)
-            // Match typical logseq patterns: ../assets/img.png, /assets/img.png, or just assets/img.png
-            const imgRegex = /!\[.*?\]\((.*?)\)/g;
-            const matches = [...processedHtml.matchAll(imgRegex)];
-            
-            // We need to do this asynchronously to load blobs
-            for (const match of matches) {
-                const fullTag = match[0];
-                const path = match[1];
-                // Extract filename
-                const filename = decodeURIComponent(path.split('/').pop());
-                
-                if (assetsMap.has(filename)) {
-                    try {
-                        const file = await assetsMap.get(filename).getFile();
-                        const url = URL.createObjectURL(file);
-                        const imgTag = `<img src="${url}" data-filename="${filename}" title="${filename}">`;
-                        processedHtml = processedHtml.replace(fullTag, imgTag);
-                    } catch(e) { console.error("Error loading image", filename, e); }
-                }
-            }
-
-            if(!document.getElementById('smartScanToggle').checked) { 
-                ed.innerHTML = processedHtml; 
-            } else {
-                const lines = processedHtml.split('\n');
-                ed.innerHTML = lines.map(l => {
-                    // Check if line is JUST an image (already converted to <img> tag)
-                    if(l.trim().startsWith('<img')) return l;
-
-                    const m = l.match(/^(\s*-\s*)?\*\*(.*?)\*\*[:?]?\s+(.*)$/);
-                    if(m && m[3].trim().length>0) return `<div class="auto-card" data-f="${escA(m[2])}" data-b="${escA(m[3])}">${l}</div>`;
-                    
-                    return l.replace(/(\^\^.*?\^\^)/g,'<span class="suggestion" data-txt="$1">$1</span>')
-                            .replace(/(\*\*.*?\*\*)/g,'<span class="suggestion" data-txt="$1">$1</span>');
-                }).join('\n');
-                
-                // Re-attach listeners
-                document.querySelectorAll('.auto-card').forEach(e=>e.onclick=(ev)=>{
-                    ev.stopPropagation(); 
-                    // Strip HTML from data-f/b if needed, but for now simple text
-                    setInputs(e.getAttribute('data-f').replace(/&quot;/g,'"'), e.getAttribute('data-b').replace(/&quot;/g,'"'));
-                });
-                document.querySelectorAll('.suggestion').forEach(e=>e.onclick=(ev)=>{
-                    ev.stopPropagation(); showPop(e);
-                });
-            }
-            wrap.scrollTop=top;
-        }
-
-        function stageDraft() {
-            const f=document.getElementById('inputFront').value.trim();
-            const b=document.getElementById('inputBack').value.trim();
-            if(!f||!b) return;
-            if (isDuplicate({front:f, back:b})) {
-               if(!confirm("This card (Front) already exists. Add anyway?")) return;
-            }
-            drafts.push({front:f,back:b});
-            document.getElementById('inputFront').value=''; document.getElementById('inputBack').value='';
-            document.getElementById('inputFront').focus(); renderDrafts();
-        }
-        function renderDrafts() {
-            const el=document.getElementById('draftList'); el.innerHTML='';
-            drafts.forEach((d,i)=>{
-                const div=document.createElement('div'); div.className='draft-item';
-                div.innerHTML=`<b>${esc(d.front)}</b><br><span style="color:var(--text-muted)">${esc(d.back)}</span>
-                <div class="draft-actions"><button class="mini-btn btn-del" onclick="drafts.splice(${i},1);renderDrafts()">Discard</button>
-                <button class="mini-btn btn-push" onclick="cards.push(drafts[${i}]);drafts.splice(${i},1);renderDrafts();renderQueue()">Add ➔</button></div>`;
-                el.appendChild(div);
-            });
-            el.scrollTop=el.scrollHeight; updateStats();
-        }
-        function commitAllDrafts() { cards.push(...drafts); drafts=[]; renderDrafts(); renderQueue(); }
-        function renderQueue() {
-            const el=document.getElementById('finalList'); el.innerHTML='';
-            cards.forEach((c,i)=>{
-                const div=document.createElement('div'); div.className='saved-card';
-                div.innerHTML=`<b>${esc(c.front)}</b><br>${esc(c.back)}
-                <button onclick="cards.splice(${i},1);renderQueue()" style="position:absolute;top:5px;right:5px;border:none;background:none;color:#ef4444;cursor:pointer;">✕</button>`;
-                el.appendChild(div);
-            });
-            el.scrollTop=el.scrollHeight; updateStats();
-        }
-
-        window.clearDrafts = function() {
-            if(drafts.length === 0) return;
-            if(confirm("Clear all pending drafts?")) { drafts = []; renderDrafts(); }
-        }
-        window.clearQueue = function() {
-            if(cards.length === 0) return;
-            if(confirm("Clear export queue?")) { cards = []; renderQueue(); }
-        }
-
-        function downloadCSV() {
-            if(cards.length===0) return alert("Queue empty!");
-            
-            // Calc default name based on open file
-            let defaultName = "anki_export.csv";
-            if (currentFileHandle && currentFileHandle.name) {
-                defaultName = currentFileHandle.name.replace(/\.md$/i, '') + ".csv";
-            }
-
-            // Prompt
-            let name = prompt("Exporting CSV. Rename if you like:", defaultName);
-            if(!name) return; // User cancelled
-            if(!name.toLowerCase().endsWith(".csv")) name += ".csv";
-
-            let totalW=0, totalC=0;
-            cards.forEach(c => {
-                totalW += (c.front + " " + c.back).split(/\s+/).length;
-                totalC += (c.front.length + c.back.length);
-            });
-            
-            let csv="#separator:Comma\n";
-            cards.forEach(c=>{
-                let f=`"${c.front.replace(/"/g,'""').replace(/\n/g,'<br>')}"`;
-                let b=`"${c.back.replace(/"/g,'""').replace(/\n/g,'<br>')}"`;
-                csv+=`${f},${b}\n`;
-            });
-            const blob=new Blob([csv],{type:'text/csv;charset=utf-8;'});
-            const link=document.createElement("a"); link.href=URL.createObjectURL(blob); link.download=name; link.click();
-            if(window.saveBatchStats) window.saveBatchStats(cards.length, totalW, totalC);
-        }
-
-        function updateStats() {
-            const t=currentRawText||"";
-            document.getElementById('statWords').innerText=t.trim()===""?0:t.trim().split(/\s+/).length.toLocaleString();
-            document.getElementById('statChars').innerText=t.length.toLocaleString();
-            document.getElementById('statDrafts').innerText=drafts.length;
-            document.getElementById('statTotal').innerText=cards.length;
-        }
-        function setInputs(f,b) {
-            const iF=document.getElementById('inputFront'); iF.value=f;
-            document.getElementById('inputBack').value=b;
-            iF.style.borderColor='#10b981'; setTimeout(()=>iF.style.borderColor='var(--border)',300);
-        }
-        function showPop(el) {
-            const p=document.getElementById('selectionPopup'); const r=el.getBoundingClientRect();
-            p.style.display='flex'; p.style.top=(r.top-40)+'px'; p.style.left=r.left+'px';
-            const range=document.createRange(); range.selectNodeContents(el);
-            window.getSelection().removeAllRanges(); window.getSelection().addRange(range);
-        }
-        function sendSelection(t) {
-            const txt=window.getSelection().toString().trim().replace(/^\*\*|\*\*$/g,'').replace(/^\^\^|\^\^$/g,'');
-            document.getElementById(t==='front'?'inputFront':'inputBack').value=txt;
-            document.getElementById('selectionPopup').style.display='none';
-        }
-        function esc(t){return t.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");}
-        function escA(t){return t.replace(/"/g,"&quot;");}
+    window.checkGeminiConnection = async function() {
+        const provider = document.getElementById('aiProvider').value;
+        const key = document.getElementById('aiKeyInput').value.trim();
+        const select = document.getElementById('aiModel');
+        if(!key || provider !== 'gemini') return;
         
-        document.addEventListener('mouseup',e=>{
-            const s=window.getSelection();
-            if(s.isCollapsed||!document.getElementById('sourceEditor').contains(s.anchorNode)) document.getElementById('selectionPopup').style.display='none';
-            else showPop(s.getRangeAt(0));
-        });
-        document.addEventListener('keydown',e=>{
-            if(e.ctrlKey&&e.key==='Enter'){e.preventDefault();stageDraft();}
-            if(e.altKey&&e.key==='1'){e.preventDefault();sendSelection('front');}
-            if(e.altKey&&e.key==='2'){e.preventDefault();sendSelection('back');}
-        });
-
-        // --- AI INTEGRATION ---
-        let aiConfig = {
-            provider: localStorage.getItem('ai_provider') || 'gemini',
-            geminiKey: localStorage.getItem('gemini_key') || "",
-            openAIKey: localStorage.getItem('openai_key') || "",
-            geminiModel: localStorage.getItem('gemini_model') || 'gemini-1.5-flash',
-            openAIModel: localStorage.getItem('openai_model') || 'gpt-4o-mini'
-        };
-
-        window.handleKeyChange = function() {
-            if (aiConfig.provider === 'gemini') checkGeminiConnection();
-        }
-
-        window.openAIConfigModal = function() {
-            document.getElementById('aiConfigModal').style.display = 'flex';
-            document.getElementById('aiProvider').value = aiConfig.provider;
-            const currentKey = aiConfig.provider === 'gemini' ? aiConfig.geminiKey : aiConfig.openAIKey;
-            document.getElementById('aiKeyInput').value = currentKey;
-            const modelGroup = document.getElementById('modelSelectGroup');
-            if (currentKey) {
-                modelGroup.style.display = 'block';
-                populateDefaultModels(aiConfig.provider);
-                if(aiConfig.provider === 'gemini') checkGeminiConnection(); 
-            } else {
-                modelGroup.style.display = 'none';
-            }
-            updateAIHelp();
-        };
-
-        function populateDefaultModels(provider) {
-            const select = document.getElementById('aiModel');
-            const currentSelection = select.value || (provider === 'gemini' ? aiConfig.geminiModel : aiConfig.openAIModel);
+        try {
+            const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${key}`);
+            const data = await response.json();
+            if (data.error) throw new Error(data.error.message);
             select.innerHTML = '';
-            let defaults = provider === 'gemini' 
-                ? ['gemini-1.5-flash', 'gemini-1.5-pro', 'gemini-2.0-flash-exp']
-                : ['gpt-4o', 'gpt-4o-mini', 'gpt-4-turbo'];
-
-            defaults.forEach(m => {
+            const models = data.models.filter(m => m.supportedGenerationMethods && m.supportedGenerationMethods.includes("generateContent"));
+            models.sort((a, b) => (a.name.includes('flash') ? -1 : 1));
+            models.forEach(m => {
+                const name = m.name.replace('models/', '');
                 const opt = document.createElement('option');
-                opt.value = m; opt.text = m + (m === currentSelection ? ' (Saved)' : '');
-                if (m === currentSelection) opt.selected = true;
+                opt.value = name; opt.text = name;
+                if(name === aiConfig.geminiModel) opt.selected = true;
                 select.add(opt);
             });
+        } catch(e) { console.error(e); populateDefaultModels('gemini'); }
+    };
+
+    window.saveAIConfig = function() {
+        const provider = document.getElementById('aiProvider').value;
+        const key = document.getElementById('aiKeyInput').value.trim();
+        const model = document.getElementById('aiModel').value;
+        if (!key) { alert("Please enter an API Key."); return; }
+
+        aiConfig.provider = provider;
+        localStorage.setItem('ai_provider', provider);
+        if (provider === 'gemini') {
+            aiConfig.geminiKey = key; aiConfig.geminiModel = model;
+            localStorage.setItem('gemini_key', key); localStorage.setItem('gemini_model', model);
+        } else {
+            aiConfig.openAIKey = key; aiConfig.openAIModel = model;
+            localStorage.setItem('openai_key', key); localStorage.setItem('openai_model', model);
+        }
+        document.getElementById('aiConfigModal').style.display = 'none';
+        alert(`Saved! Using ${provider} (${model}).`);
+    };
+
+    function isDuplicate(newCard) {
+        const isRef = (c) => c.front.trim() === newCard.front.trim();
+        return drafts.some(isRef) || cards.some(isRef);
+    }
+
+    // --- IMAGE HELPERS ---
+    async function fileToGenericBase64(file) {
+        return new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = () => resolve(reader.result.split(',')[1]); // Remove "data:image/..." header
+            reader.onerror = error => reject(error);
+            reader.readAsDataURL(file);
+        });
+    }
+
+    window.generateAICard = async function(mode) {
+        const btn = document.querySelectorAll('.btn-ai')[mode === 'single' ? 0 : 1];
+        const frontEl = document.getElementById('inputFront');
+        const backEl = document.getElementById('inputBack');
+        
+        let textToProcess = "";
+        if (mode === 'single') {
+            textToProcess = window.getSelection().toString().trim();
+            if(!textToProcess) textToProcess = frontEl.value.trim();
+            if(!textToProcess) { alert("Please select text or type in Front box."); return; }
+        } else {
+            textToProcess = currentRawText;
+            if(!textToProcess) { alert("No file content loaded."); return; }
         }
 
-        window.updateAIHelp = function() {
-            const provider = document.getElementById('aiProvider').value;
-            const helpBox = document.getElementById('aiHelpBox');
-            const modelGroup = document.getElementById('modelSelectGroup');
-            populateDefaultModels(provider);
-
-            if (provider === 'gemini') {
-                helpBox.innerHTML = `<strong>Get a Free Google Gemini API Key:</strong><br>1. Go to <a href="https://aistudio.google.com/app/apikey" target="_blank">Google AI Studio</a>.<br>2. Click "Create API Key" (New Project).`;
-            } else {
-                helpBox.innerHTML = `<strong>Get an OpenAI API Key:</strong><br>1. Go to <a href="https://platform.openai.com/api-keys" target="_blank">OpenAI Platform</a>.`;
+        // --- DETECT IMAGES IN TEXT ---
+        const imgRegex = /!\[.*?\]\((.*?)\)/g;
+        const imgMatches = [...textToProcess.matchAll(imgRegex)];
+        let imagesToSend = [];
+        
+        // Limit images to avoid payload explosion (max 5 for now)
+        for (let i = 0; i < Math.min(imgMatches.length, 5); i++) {
+            const filename = decodeURIComponent(imgMatches[i][1].split('/').pop());
+            if (assetsMap.has(filename)) {
+                try {
+                    const file = await assetsMap.get(filename).getFile();
+                    const b64 = await fileToGenericBase64(file);
+                    imagesToSend.push({ mime: file.type || 'image/png', data: b64 });
+                } catch(e) { console.error("Could not process image for AI", filename); }
             }
-            
-            const currentStored = provider === 'gemini' ? aiConfig.geminiKey : aiConfig.openAIKey;
-            document.getElementById('aiKeyInput').value = currentStored;
-            if(currentStored) modelGroup.style.display = 'block'; else modelGroup.style.display = 'none';
-        };
+        }
+        // -----------------------------
 
-        window.checkGeminiConnection = async function() {
-            const provider = document.getElementById('aiProvider').value;
-            const key = document.getElementById('aiKeyInput').value.trim();
-            const select = document.getElementById('aiModel');
-            if(!key || provider !== 'gemini') return;
-            
-            try {
-                const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${key}`);
+        const activeKey = aiConfig.provider === 'gemini' ? aiConfig.geminiKey : aiConfig.openAIKey;
+        if(!activeKey) { openAIConfigModal(); return; }
+
+        btn.classList.add('loading');
+        const originalBtnText = btn.innerHTML;
+        btn.innerHTML = `<span class="spinner"></span> <span id="aiBtnText">Processing...</span><div id="aiProgressBar" class="ai-progress-bar"></div>`;
+        const progressBar = document.getElementById('aiProgressBar');
+        
+        // Fake progress animation
+        let progress = 5;
+        const progressInterval = setInterval(() => {
+            if(progress < 90) progress += (90 - progress) * 0.1; 
+            if(progressBar) progressBar.style.width = `${progress}%`;
+        }, 800); 
+
+        try {
+            const modelId = aiConfig.provider === 'gemini' ? aiConfig.geminiModel : aiConfig.openAIModel;
+            const systemPrompt = mode === 'single' 
+                ? `Create ONE Anki flashcard. JSON only {"front": "...", "back": "..."}. Use HTML tags (<b>, <i>, <br>, <code>) for formatting. DO NOT use Markdown syntax (like ** or ##). Input: "${textToProcess}"`
+                : `Create flashcards JSON Array [{"front": "...", "back": "..."}, ...]. Use HTML tags (<b>, <i>, <br>, <code>) for formatting. DO NOT use Markdown syntax (like ** or ##). Input: "${textToProcess.substring(0, 30000)}"`;
+
+            let rawResponse = "";
+
+            if (aiConfig.provider === 'gemini') {
+                // GEMINI MULTIMODAL PAYLOAD
+                const parts = [{ text: systemPrompt }];
+                // Add images
+                imagesToSend.forEach(img => {
+                    parts.push({ inline_data: { mime_type: img.mime, data: img.data } });
+                });
+
+                const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelId}:generateContent?key=${activeKey}`;
+                const response = await fetch(url, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ contents: [{ parts: parts }] })
+                });
                 const data = await response.json();
                 if (data.error) throw new Error(data.error.message);
-                select.innerHTML = '';
-                const models = data.models.filter(m => m.supportedGenerationMethods && m.supportedGenerationMethods.includes("generateContent"));
-                models.sort((a, b) => (a.name.includes('flash') ? -1 : 1));
-                models.forEach(m => {
-                    const name = m.name.replace('models/', '');
-                    const opt = document.createElement('option');
-                    opt.value = name; opt.text = name;
-                    if(name === aiConfig.geminiModel) opt.selected = true;
-                    select.add(opt);
+                
+                const rawText = data.candidates[0].content.parts[0].text;
+                rawResponse = rawText.replace(/```json/g, '').replace(/```/g, '').trim();
+
+            } else {
+                // OPENAI MULTIMODAL PAYLOAD
+                const contentArr = [{ type: "text", text: systemPrompt }];
+                // Add images
+                imagesToSend.forEach(img => {
+                    contentArr.push({ type: "image_url", image_url: { url: `data:${img.mime};base64,${img.data}` } });
                 });
-            } catch(e) { console.error(e); populateDefaultModels('gemini'); }
-        };
 
-        window.saveAIConfig = function() {
-            const provider = document.getElementById('aiProvider').value;
-            const key = document.getElementById('aiKeyInput').value.trim();
-            const model = document.getElementById('aiModel').value;
-            if (!key) { alert("Please enter an API Key."); return; }
-
-            aiConfig.provider = provider;
-            localStorage.setItem('ai_provider', provider);
-            if (provider === 'gemini') {
-                aiConfig.geminiKey = key; aiConfig.geminiModel = model;
-                localStorage.setItem('gemini_key', key); localStorage.setItem('gemini_model', model);
-            } else {
-                aiConfig.openAIKey = key; aiConfig.openAIModel = model;
-                localStorage.setItem('openai_key', key); localStorage.setItem('openai_model', model);
+                const url = `https://api.openai.com/v1/chat/completions`;
+                const response = await fetch(url, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${activeKey}` },
+                    body: JSON.stringify({ model: modelId, messages: [{ role: "user", content: contentArr }] })
+                });
+                const data = await response.json();
+                if (data.error) throw new Error(data.error.message);
+                rawResponse = data.choices[0].message.content.replace(/```json/g, '').replace(/```/g, '').trim();
             }
-            document.getElementById('aiConfigModal').style.display = 'none';
-            alert(`Saved! Using ${provider} (${model}).`);
-        };
 
-        function isDuplicate(newCard) {
-            const isRef = (c) => c.front.trim() === newCard.front.trim();
-            return drafts.some(isRef) || cards.some(isRef);
-        }
-
-        // --- IMAGE HELPERS ---
-        async function fileToGenericBase64(file) {
-            return new Promise((resolve, reject) => {
-                const reader = new FileReader();
-                reader.onload = () => resolve(reader.result.split(',')[1]); // Remove "data:image/..." header
-                reader.onerror = error => reject(error);
-                reader.readAsDataURL(file);
-            });
-        }
-
-        window.generateAICard = async function(mode) {
-            const btn = document.querySelectorAll('.btn-ai')[mode === 'single' ? 0 : 1];
-            const frontEl = document.getElementById('inputFront');
-            const backEl = document.getElementById('inputBack');
-            
-            let textToProcess = "";
+            // Parse & Handle Results
             if (mode === 'single') {
-                textToProcess = window.getSelection().toString().trim();
-                if(!textToProcess) textToProcess = frontEl.value.trim();
-                if(!textToProcess) { alert("Please select text or type in Front box."); return; }
+                const card = JSON.parse(rawResponse);
+                if(isDuplicate(card)) throw new Error("Duplicate card."); 
+                frontEl.value = card.front; backEl.value = card.back;
+                if(window.trackAIStats) window.trackAIStats(1);
             } else {
-                textToProcess = currentRawText;
-                if(!textToProcess) { alert("No file content loaded."); return; }
-            }
-
-            // --- DETECT IMAGES IN TEXT ---
-            const imgRegex = /!\[.*?\]\((.*?)\)/g;
-            const imgMatches = [...textToProcess.matchAll(imgRegex)];
-            let imagesToSend = [];
-            
-            // Limit images to avoid payload explosion (max 5 for now)
-            for (let i = 0; i < Math.min(imgMatches.length, 5); i++) {
-                const filename = decodeURIComponent(imgMatches[i][1].split('/').pop());
-                if (assetsMap.has(filename)) {
-                    try {
-                        const file = await assetsMap.get(filename).getFile();
-                        const b64 = await fileToGenericBase64(file);
-                        imagesToSend.push({ mime: file.type || 'image/png', data: b64 });
-                    } catch(e) { console.error("Could not process image for AI", filename); }
+                const cardsGenerated = JSON.parse(rawResponse);
+                let added = 0;
+                if (Array.isArray(cardsGenerated)) {
+                    cardsGenerated.forEach(c => { if(!isDuplicate(c)) { drafts.push(c); added++; } });
+                    renderDrafts();
+                    alert(`Generated ${added} cards.`);
+                    if(window.trackAIStats) window.trackAIStats(added);
                 }
             }
-            // -----------------------------
+            if(progressBar) progressBar.style.width = '100%';
+            await new Promise(r => setTimeout(r, 200));
 
-            const activeKey = aiConfig.provider === 'gemini' ? aiConfig.geminiKey : aiConfig.openAIKey;
-            if(!activeKey) { openAIConfigModal(); return; }
-
-            btn.classList.add('loading');
-            const originalBtnText = btn.innerHTML;
-            btn.innerHTML = `<span class="spinner"></span> <span id="aiBtnText">Processing...</span><div id="aiProgressBar" class="ai-progress-bar"></div>`;
-            const progressBar = document.getElementById('aiProgressBar');
-            
-            // Fake progress animation
-            let progress = 5;
-            const progressInterval = setInterval(() => {
-                if(progress < 90) progress += (90 - progress) * 0.1; 
-                if(progressBar) progressBar.style.width = `${progress}%`;
-            }, 800); 
-
-            try {
-                const modelId = aiConfig.provider === 'gemini' ? aiConfig.geminiModel : aiConfig.openAIModel;
-                const systemPrompt = mode === 'single' 
-                    ? `Create ONE Anki flashcard. JSON only {"front": "...", "back": "..."}. Input: "${textToProcess}"`
-                    : `Create flashcards JSON Array [{"front": "...", "back": "..."}, ...]. Input: "${textToProcess.substring(0, 30000)}"`;
-
-                let rawResponse = "";
-
-                if (aiConfig.provider === 'gemini') {
-                    // GEMINI MULTIMODAL PAYLOAD
-                    const parts = [{ text: systemPrompt }];
-                    // Add images
-                    imagesToSend.forEach(img => {
-                        parts.push({ inline_data: { mime_type: img.mime, data: img.data } });
-                    });
-
-                    const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelId}:generateContent?key=${activeKey}`;
-                    const response = await fetch(url, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ contents: [{ parts: parts }] })
-                    });
-                    const data = await response.json();
-                    if (data.error) throw new Error(data.error.message);
-                    
-                    const rawText = data.candidates[0].content.parts[0].text;
-                    rawResponse = rawText.replace(/```json/g, '').replace(/```/g, '').trim();
-
-                } else {
-                    // OPENAI MULTIMODAL PAYLOAD
-                    const contentArr = [{ type: "text", text: systemPrompt }];
-                    // Add images
-                    imagesToSend.forEach(img => {
-                        contentArr.push({ type: "image_url", image_url: { url: `data:${img.mime};base64,${img.data}` } });
-                    });
-
-                    const url = `https://api.openai.com/v1/chat/completions`;
-                    const response = await fetch(url, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${activeKey}` },
-                        body: JSON.stringify({ model: modelId, messages: [{ role: "user", content: contentArr }] })
-                    });
-                    const data = await response.json();
-                    if (data.error) throw new Error(data.error.message);
-                    rawResponse = data.choices[0].message.content.replace(/```json/g, '').replace(/```/g, '').trim();
-                }
-
-                // Parse & Handle Results
-                if (mode === 'single') {
-                    const card = JSON.parse(rawResponse);
-                    if(isDuplicate(card)) throw new Error("Duplicate card."); 
-                    frontEl.value = card.front; backEl.value = card.back;
-                    if(window.trackAIStats) window.trackAIStats(1);
-                } else {
-                    const cardsGenerated = JSON.parse(rawResponse);
-                    let added = 0;
-                    if (Array.isArray(cardsGenerated)) {
-                        cardsGenerated.forEach(c => { if(!isDuplicate(c)) { drafts.push(c); added++; } });
-                        renderDrafts();
-                        alert(`Generated ${added} cards.`);
-                        if(window.trackAIStats) window.trackAIStats(added);
-                    }
-                }
-                if(progressBar) progressBar.style.width = '100%';
-                await new Promise(r => setTimeout(r, 200));
-
-            } catch (err) {
-                console.error(err);
-                alert("AI Error: " + err.message);
-            } finally {
-                clearInterval(progressInterval);
-                btn.classList.remove('loading');
-                btn.innerHTML = originalBtnText;
-            }
-        };
+        } catch (err) {
+            console.error(err);
+            alert("AI Error: " + err.message);
+        } finally {
+            clearInterval(progressInterval);
+            btn.classList.remove('loading');
+            btn.innerHTML = originalBtnText;
+        }
+    };
     </script>
 </body>
 </html>
